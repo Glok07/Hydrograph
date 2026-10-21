@@ -41,7 +41,7 @@ export function TimeBar() {
   const pct = hour === null ? 0 : ((hour - FIRST) / (LAST - FIRST)) * 100
 
   return (
-    <div className="glass flex items-center gap-4 !rounded-2xl px-4 py-3">
+    <div className="glass flex items-center gap-3 !rounded-2xl px-3 py-3 sm:gap-4 sm:px-4">
       <button onClick={play} aria-label={playing ? 'Pause' : 'Lire la journée'} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-blue text-white shadow-md transition-transform hover:scale-105">
         {playing ? (
           <svg viewBox="0 0 24 24" width="16" height="16"><path d="M7 5h3v14H7zM14 5h3v14h-3z" fill="currentColor" /></svg>
@@ -50,15 +50,15 @@ export function TimeBar() {
         )}
       </button>
       <div className="min-w-0 flex-1">
-        <div className="mb-1.5 flex items-baseline justify-between gap-3">
-          <p className="font-display text-sm font-semibold">
+        <div className="mb-1.5 flex items-start justify-between gap-2 sm:items-baseline">
+          <p className="min-w-0 font-display text-sm font-semibold">
             {hour === null ? 'Toute la journée' : `${hour} h`}
-            <span className="ml-2 font-sans text-xs font-normal text-ink/60">
+            <span className="mt-0.5 block font-sans text-[11px] font-normal leading-snug text-ink/60 sm:ml-2 sm:mt-0 sm:inline sm:text-xs">
               {wet === null ? 'Lancez la journée pour voir l’eau circuler' : `${wet} zone${wet > 1 ? 's' : ''} sur ${shown.length} ont l’eau`}
             </span>
           </p>
           {hour !== null && (
-            <button onClick={() => { setPlaying(false); setHour(null) }} className="text-xs font-semibold text-blue hover:underline">
+            <button onClick={() => { setPlaying(false); setHour(null) }} className="shrink-0 text-xs font-semibold text-blue hover:underline">
               Journée entière
             </button>
           )}

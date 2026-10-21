@@ -20,7 +20,8 @@ export interface Pipe {
 }
 
 export interface Network {
-  tower: { name: string; capacity: number }
+  /** lng/lat : position du château d'eau sur la carte, modifiable depuis l'écran Opérateur. */
+  tower: { name: string; capacity: number; lng?: number; lat?: number }
   zones: Zone[]
   pipes: Pipe[]
 }
@@ -31,7 +32,7 @@ export interface Network {
  * de démonstration. Deux branches : ouest (Togba, Ouèdo, Hêvié) et sud (Godomey, Cococodji).
  */
 export const CALAVI: Network = {
-  tower: { name: "Château d'eau (simulé)", capacity: 72 },
+  tower: { name: "Château d'eau (simulé)", capacity: 72, lng: 2.3445, lat: 6.4572 },
   zones: [
     { id: 'Z1', name: 'Abomey-Calavi centre', households: 4200, demand: 14, depth: 0, wells: false },
     { id: 'Z2', name: 'Togba', households: 3100, demand: 12, depth: 1, wells: false },

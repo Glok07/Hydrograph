@@ -24,11 +24,11 @@ export function SourcesDialog() {
   return (
     <AnimatePresence>
       {open && (
-        <motion.div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 p-4 backdrop-blur-sm sm:items-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setOpen(false)}>
-          <motion.div role="dialog" aria-modal="true" aria-labelledby="sources-title" className="card max-h-[85vh] w-full max-w-3xl overflow-y-auto p-6 md:p-8" initial={{ y: 40, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 30, opacity: 0 }} transition={{ type: 'spring', stiffness: 320, damping: 30 }} onClick={(e) => e.stopPropagation()}>
+        <motion.div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 p-3 backdrop-blur-sm sm:items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setOpen(false)}>
+          <motion.div role="dialog" aria-modal="true" aria-labelledby="sources-title" className="card max-h-[92svh] w-full max-w-3xl overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6 md:p-8" initial={{ y: 40, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 30, opacity: 0 }} transition={{ type: 'spring', stiffness: 320, damping: 30 }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 id="sources-title" className="font-display text-xl font-semibold">D’où viennent les données ?</h2>
+              <div className="min-w-0">
+                <h2 id="sources-title" className="font-display text-lg font-semibold leading-tight sm:text-xl">D’où viennent les données ?</h2>
                 <p className="mt-1 text-sm text-ink/65">La démo tourne sur des données simulées qui gardent la forme des vraies sources. HydroGraph fonctionne dès le premier jour avec le calendrier, les données publiques et les habitants, sans attendre d’accord avec un opérateur.</p>
               </div>
               <button onClick={() => setOpen(false)} aria-label="Fermer" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink/5 text-lg hover:bg-ink/10">×</button>

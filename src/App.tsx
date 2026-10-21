@@ -19,15 +19,15 @@ export default function App() {
   return (
     <div className="page min-h-screen">
       {/* --hero-h : hauteur de l'accueil, partagée par l'eau, les bulles et le recouvrement du panneau */}
-      <div onPointerMove={onMove} className="frame relative overflow-hidden pb-8">
-        <div className="relative" style={{ ['--hero-h' as string]: 'clamp(420px, 52cqw, 700px)' }}>
+      <div onPointerMove={onMove} className="frame hero-stage relative overflow-hidden pb-6 sm:pb-8">
+        <div className="relative">
           <Hero />
           <Bubbles x={x} />
-          <div className="relative z-[2] mx-auto max-w-[1240px] px-4 md:px-8">
+          <div className="relative z-[2] mx-auto max-w-[1240px] px-3 sm:px-4 md:px-8">
             <Panel />
           </div>
         </div>
-        <p className="relative z-[2] mt-6 px-8 text-center text-[11px] text-ink/45">
+        <p className="relative z-[2] mt-6 px-4 text-center text-[11px] leading-relaxed text-ink/45">
           HydroGraph · démo hackathon · données simulées · fond de carte © OpenStreetMap, CARTO
         </p>
       </div>

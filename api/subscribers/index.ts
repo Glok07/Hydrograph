@@ -15,6 +15,30 @@ function normalize(raw: string): string | null {
   return /^01\d{8}$/.test(d) ? toE164(d) : null
 }
 
+/**
+ * Liste des abonnés (pour l'écran Familles) : jamais le numéro en clair, c'est un onglet public
+ * de la démo, pas une vue opérateur. ?zone=Z1 filtre ; sans paramètre, renvoie tout.
+ */
+export async function GET(request: Request) {
+  const zone = new URL(request.url).searchParams.get('zone')
+  const rows = await prisma.subscriber.findMany({
+    where: { consent: true, unsubscribedAt: null, ...(zone ? { zone } : {}) },
+    orderBy: { joinedAt: 'asc' },
+  })
+  return json(
+    rows.map((s) => ({
+      id: s.id,
+      name: s.name,
+      zone: s.zone,
+      lang: s.lang,
+      channel: s.channel,
+      members: s.members,
+      real: s.real,
+      phoneMasked: `•• •• •• ${s.phone.slice(-2)}`,
+    })),
+  )
+}
+
 /** Inscription : enregistre l'abonné (non vérifié) puis envoie un code à 6 chiffres sur WhatsApp. */
 export async function POST(request: Request) {
   const b = await readJson<{ name?: string; phone?: string; zone?: string; lang?: string; consent?: boolean }>(request)

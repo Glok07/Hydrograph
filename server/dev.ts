@@ -2,16 +2,22 @@
 import 'dotenv/config'
 import http from 'node:http'
 import * as alertsSend from '../api/alerts/send.js'
+import * as history from '../api/history/index.js'
+import * as network from '../api/network/index.js'
+import * as planAi from '../api/plan/ai.js'
 import * as subscribers from '../api/subscribers/index.js'
 import * as verify from '../api/subscribers/verify.js'
 import * as webhook from '../api/whatsapp/webhook.js'
 
-type Handlers = Partial<Record<'GET' | 'POST', (r: Request) => Response | Promise<Response>>>
+type Handlers = Partial<Record<'GET' | 'POST' | 'PUT', (r: Request) => Response | Promise<Response>>>
 const routes: Record<string, Handlers> = {
   '/api/subscribers': subscribers,
   '/api/subscribers/verify': verify,
   '/api/alerts/send': alertsSend,
+  '/api/plan/ai': planAi,
   '/api/whatsapp/webhook': webhook,
+  '/api/network': network,
+  '/api/history': history,
 }
 
 const PORT = Number(process.env.PORT ?? 8787)
@@ -19,7 +25,7 @@ const PORT = Number(process.env.PORT ?? 8787)
 http
   .createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://localhost:${PORT}`)
-    const handler = routes[url.pathname]?.[req.method as 'GET' | 'POST']
+    const handler = routes[url.pathname]?.[req.method as 'GET' | 'POST' | 'PUT']
     if (!handler) {
       res.writeHead(404).end('not found')
       return
