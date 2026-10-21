@@ -46,6 +46,8 @@ function Plan({ title, note, rows }: { title: string; note: string; rows: ZoneFo
 /** Vue opérateur (F6) : plan du jour, avant et après le recalcul des tours d'eau. */
 export function OperatorView() {
   const event = useHydro((s) => s.event)
+  const causes = useHydro((s) => s.causes)
+  const period = useHydro((s) => s.period)
   const { before, after } = useDerived()
   const [ai, setAi] = useState<AiPlanResponse | { error: string } | null>(null)
   // 'done' tient la jauge à 100 % un court instant avant de laisser place au résultat.
@@ -53,7 +55,7 @@ export function OperatorView() {
 
   const askAi = async () => {
     setAiPhase('loading')
-    setAi(await requestAiPlan(event))
+    setAi(await requestAiPlan(event, { events: causes, period }))
     setAiPhase('done')
     setTimeout(() => setAiPhase('idle'), 650)
   }
@@ -65,8 +67,8 @@ export function OperatorView() {
 
   return (
     <div className="grid gap-4">
-      <motion.div key={event ?? 'none'} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-ink/80">
-        <span>{event ? <strong>{EVENT_LABEL[event]}</strong> : 'Journée normale'}</span>
+      <motion.div key={causes.join('+') || 'none'} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-ink/80">
+        <span>{causes.length ? <strong>{causes.map((c) => EVENT_LABEL[c]).join(' + ')}</strong> : 'Journée normale'}</span>
         <span>Écart entre zones : <strong>{gapOf(before)} h</strong> → <strong className="text-ok">{gapOf(after)} h</strong> avec HydroGraph</span>
       </motion.div>
 

@@ -27,3 +27,6 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Cache de scripts/fetch-osm.ts (reprise après une panne d'Overpass)
+scripts/.osm-cache.json

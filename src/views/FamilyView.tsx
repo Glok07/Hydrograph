@@ -16,6 +16,8 @@ export function FamilyView() {
   const zoneId = useHydro((s) => s.zone)
   const setZone = useHydro((s) => s.setZone)
   const event = useHydro((s) => s.event)
+  const causes = useHydro((s) => s.causes)
+  const period = useHydro((s) => s.period)
   const plan = useHydro((s) => s.plan)
   const { shown } = useDerived()
   const [lang, setLang] = useState<Lang>('fr')
@@ -45,7 +47,7 @@ export function FamilyView() {
       return
     }
     setBusy(true)
-    const out = await sendAlerts(event, plan)
+    const out = await sendAlerts(event, plan, { events: causes, period })
     setBusy(false)
     if ('error' in out) {
       // Détail technique en console : l'écran reste lisible pendant une démonstration.

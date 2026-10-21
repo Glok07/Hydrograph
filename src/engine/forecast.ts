@@ -1,7 +1,12 @@
 import type { Network, ZoneId } from '../data/network'
 import { SLOT_H, SLOT_STARTS, conditionsFor, demandAt } from './conditions.js'
+import type { Conditions } from './conditions'
 import type { HydroEvent } from './events'
 import { isReachable } from './graph.js'
+import { zoneImpact } from './impact.js'
+import type { ZoneImpact } from './impact'
+import { REFERENCE_PERIOD } from './periods.js'
+import type { PeriodContext } from './periods'
 
 export type Status = 'ok' | 'warn' | 'risk'
 
@@ -19,6 +24,8 @@ export interface ZoneForecast {
   hoursOfWater: number
   slots: Slot[]
   qualityRisk: boolean
+  /** impact par type d'eau, rempli par finalize() une fois l'eau répartie */
+  impact?: ZoneImpact
 }
 
 /** Vrai si la zone a l'eau à cette heure ; sans heure précise, on regarde la journée. */
@@ -42,11 +49,24 @@ export function toForecast(zone: ZoneId, slots: Slot[], qualityRisk: boolean): Z
 }
 
 /**
+ * Dernière étape commune à toutes les répartitions : une fois les créneaux du robinet connus,
+ * calcule l'impact sur chaque type d'eau, en déduit l'alerte qualité (donc le statut) et l'attache.
+ */
+export function finalize(net: Network, cond: Conditions, raw: ZoneForecast[]): ZoneForecast[] {
+  return raw.map((f) => {
+    const zone = net.zones.find((z) => z.id === f.zone)!
+    const impact = zoneImpact(net, zone, cond.scenario, f.slots)
+    return { ...toForecast(f.zone, f.slots, impact.qualityRisk), impact }
+  })
+}
+
+/**
  * Situation « sans HydroGraph » : le réseau sert les zones les plus proches
  * du château d'eau en premier, et s'arrête quand le débit manque.
+ * `event` : un événement, plusieurs causes cumulées, ou rien ; `ctx` : la période (jour de marché, vacances…).
  */
-export function forecast(net: Network, event: HydroEvent | null): ZoneForecast[] {
-  const cond = conditionsFor(net, event)
+export function forecast(net: Network, event: HydroEvent | HydroEvent[] | null, ctx: PeriodContext = REFERENCE_PERIOD): ZoneForecast[] {
+  const cond = conditionsFor(net, event, ctx)
   const byDepth = [...net.zones].sort((a, b) => a.depth - b.depth)
   const slots = new Map<ZoneId, Slot[]>(net.zones.map((z) => [z.id, []]))
 
@@ -54,13 +74,18 @@ export function forecast(net: Network, event: HydroEvent | null): ZoneForecast[]
     let left = cond.capacity[i]
     for (const z of byDepth) {
       if (!isReachable(net, z.id, cond.broken)) continue
-      const need = demandAt(z, start)
-      if (need <= left) {
-        left -= need
-        slots.get(z.id)!.push({ start, end: start + SLOT_H })
-      }
+      const need = demandAt(z, start, cond)
+      // Le réseau sert les zones dans l'ordre et s'arrête au premier manque de débit : sauter une zone
+      // proche pour en servir une plus loin ferait gagner des heures à une zone quand la capacité baisse.
+      if (need > left) break
+      left -= need
+      slots.get(z.id)!.push({ start, end: start + SLOT_H })
     }
   })
 
-  return net.zones.map((z) => toForecast(z.id, slots.get(z.id)!, cond.qualityRisk.has(z.id)))
+  return finalize(
+    net,
+    cond,
+    net.zones.map((z) => toForecast(z.id, slots.get(z.id)!, false)),
+  )
 }

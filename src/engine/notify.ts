@@ -48,13 +48,16 @@ export interface AlertReport {
   results: { name: string; status: string; error?: string }[]
 }
 
-/** Demande au serveur de diffuser l'alerte courante : le jeton WhatsApp ne quitte jamais le serveur. */
-export async function sendAlerts(event: EventType | null, plan: boolean): Promise<AlertReport | { error: string }> {
+/**
+ * Demande au serveur de diffuser l'alerte courante : le jeton WhatsApp ne quitte jamais le serveur.
+ * `extra` : toutes les causes cumulées et la période, pour que les messages décrivent la même journée que l'écran.
+ */
+export async function sendAlerts(event: EventType | null, plan: boolean, extra?: { events?: EventType[]; period?: string }): Promise<AlertReport | { error: string }> {
   try {
     const res = await fetch('/api/alerts/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event, plan }),
+      body: JSON.stringify({ event, plan, ...extra }),
     })
     const body = await res.json().catch(() => ({}))
     return res.ok ? body : { error: body.error ?? `HTTP ${res.status}` }

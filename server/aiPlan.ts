@@ -2,9 +2,12 @@ import { sanitizePriority } from '../src/engine/aiPlan.js'
 import { CALAVI } from '../src/data/network.js'
 import { HISTORY } from '../src/data/history.js'
 import { conditionsFor } from '../src/engine/conditions.js'
+import { toEvents } from '../src/engine/events.js'
 import type { HydroEvent } from '../src/engine/events.js'
 import type { ZoneForecast } from '../src/engine/forecast.js'
 import { isReachable } from '../src/engine/graph.js'
+import { REFERENCE_PERIOD } from '../src/engine/periods.js'
+import type { PeriodContext } from '../src/engine/periods.js'
 import { priorityRounds } from '../src/engine/rounds.js'
 
 export interface AiPlanResult {
@@ -17,10 +20,10 @@ export interface AiPlanResult {
 
 const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
 
-const fallback = (event: HydroEvent | null, reason?: string): AiPlanResult => ({
+const fallback = (events: HydroEvent[], ctx: PeriodContext, reason?: string): AiPlanResult => ({
   source: 'fallback',
   reason,
-  forecasts: priorityRounds(CALAVI, event, []),
+  forecasts: priorityRounds(CALAVI, events, [], ctx),
 })
 
 /**
@@ -31,13 +34,14 @@ const fallback = (event: HydroEvent | null, reason?: string): AiPlanResult => ({
  * retombe sur le plan déterministe neutre ; une réponse exploitable, même partielle, est
  * toujours utilisée telle quelle après assainissement (sanitizePriority).
  */
-export async function planWithAi(event: HydroEvent | null): Promise<AiPlanResult> {
+export async function planWithAi(event: HydroEvent | HydroEvent[] | null, ctx: PeriodContext = REFERENCE_PERIOD): Promise<AiPlanResult> {
+  const events = toEvents(event)
   const { RODIUM_API_KEY, RODIUM_API_URL, RODIUM_MODEL } = process.env
   if (!RODIUM_API_KEY || RODIUM_API_KEY.includes('REMPLACER') || !RODIUM_API_URL) {
-    return fallback(event, 'Clé Rodium absente ou non configurée.')
+    return fallback(events, ctx, 'Clé Rodium absente ou non configurée.')
   }
 
-  const cond = conditionsFor(CALAVI, event)
+  const cond = conditionsFor(CALAVI, events, ctx)
   const reachable = CALAVI.zones.filter((z) => isReachable(CALAVI, z.id, cond.broken))
   const payload = {
     zonesReliees: reachable.map((z) => ({
@@ -48,7 +52,8 @@ export async function planWithAi(event: HydroEvent | null): Promise<AiPlanResult
       risqueQualiteAujourdhui: cond.qualityRisk.has(z.id),
       moyenneHeuresEau7DerniersJours: Math.round(avg(HISTORY[z.id]) * 10) / 10,
     })),
-    evenement: event?.type ?? null,
+    evenements: events.map((e) => e.type),
+    periode: ctx.label,
   }
 
   try {
@@ -79,16 +84,16 @@ export async function planWithAi(event: HydroEvent | null): Promise<AiPlanResult
       }),
       signal: AbortSignal.timeout(30000),
     })
-    if (!res.ok) return fallback(event, `Rodium HTTP ${res.status}`)
+    if (!res.ok) return fallback(events, ctx, `Rodium HTTP ${res.status}`)
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[] }
     const content = data.choices?.[0]?.message?.content
-    if (!content) return fallback(event, 'Réponse Rodium vide.')
+    if (!content) return fallback(events, ctx, 'Réponse Rodium vide.')
 
     let parsed: unknown
     try {
       parsed = JSON.parse(content)
     } catch {
-      return fallback(event, 'Réponse Rodium non JSON.')
+      return fallback(events, ctx, 'Réponse Rodium non JSON.')
     }
     const obj = parsed as { priority?: unknown; pourquoi?: unknown }
     const { priority, note } = sanitizePriority(CALAVI, obj.priority)
@@ -96,9 +101,9 @@ export async function planWithAi(event: HydroEvent | null): Promise<AiPlanResult
       source: 'ai',
       reason: note,
       explanation: typeof obj.pourquoi === 'string' ? obj.pourquoi.slice(0, 240) : undefined,
-      forecasts: priorityRounds(CALAVI, event, priority),
+      forecasts: priorityRounds(CALAVI, events, priority, ctx),
     }
   } catch {
-    return fallback(event, 'Rodium injoignable ou délai dépassé (30 s).')
+    return fallback(events, ctx, 'Rodium injoignable ou délai dépassé (30 s).')
   }
 }

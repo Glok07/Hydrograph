@@ -119,116 +119,117 @@ Choix guidés par une contrainte : **deux jours, pas de backend, démo fiable ho
 hydrograph/
 ├── README.md
 ├── HydroGraph_cahier_des_charges.docx
-├── package.json
-├── vite.config.ts
-├── public/
-│   ├── logo.svg
-│   ├── bg-underwater.jpg          # fond sous-marin, optimisé < 400 Ko
-│   └── audio/                     # (optionnel) voix pré-enregistrées fon/goun/yoruba
+├── api/                       # fonctions serveur : alertes WhatsApp, abonnés, réseau, plan par IA
+├── server/                    # accès base de données, WhatsApp, Rodium (IA), serveur local
+├── prisma/                    # schéma et migrations de la base
+├── scripts/
+│   └── fetch-osm.ts           # relève les activités de chaque zone dans OpenStreetMap
 └── src/
-    ├── main.tsx
-    ├── App.tsx
-    ├── styles/
-    │   ├── tokens.css             # variables de la DA
-    │   └── glass.css
     ├── data/
-    │   ├── network.ts             # graphe : zones, conduites, source
-    │   ├── calendar.ts            # heures de pointe, saisons, marchés
-    │   ├── history.ts             # 7 jours d'historique simulé
-    │   └── sources.ts             # donnée simulée -> vraie source future
-    ├── engine/
-    │   ├── graph.ts               # parcours du graphe, dépendances
-    │   ├── events.ts              # effets des événements
-    │   ├── forecast.ts            # prévision par zone
-    │   ├── rounds.ts              # tours d'eau (F4)
-    │   ├── equity.ts              # indicateurs d'équité (F7)
-    │   ├── messages.ts            # génération des messages (F5)
-    │   └── __tests__/
-    ├── store/
-    │   └── useHydro.ts            # état global (événement actif, plan, historique)
-    ├── components/
-    │   ├── Frame.tsx              # grand cadre arrondi
-    │   ├── NavBar.tsx
-    │   ├── Hero.tsx               # titre géant + CTA
-    │   ├── CityMap.tsx            # SVG des 6 zones + conduites (F1)
-    │   ├── ZoneCard.tsx           # fiche de zone (F2)
-    │   ├── EventPanel.tsx         # boutons d'événements (F3)
-    │   ├── RoundsTimeline.tsx     # frise des tours d'eau (F4, F6)
-    │   ├── MessagePreview.tsx     # téléphone avec le message (F5)
-    │   ├── StatTile.tsx           # tuile chiffre + légende
-    │   ├── EquityMap.tsx          # vue mairie (F7)
-    │   └── SourceBadge.tsx        # étiquette « source future : SoNEB »
-    └── views/
-        ├── Home.tsx
-        ├── MapView.tsx
-        ├── OperatorView.tsx
-        ├── CityHallView.tsx
-        └── FamilyView.tsx
+    │   ├── network.ts         # réseau : zones, conduites, château d'eau
+    │   ├── geo.ts             # coordonnées réelles, contours, tracé des conduites
+    │   ├── osm-activities.ts  # écoles, marchés, santé, restaurants… par zone (OpenStreetMap, généré)
+    │   ├── profiles.ts        # profil de chaque zone : mélange des sources d'eau, crues, activités
+    │   ├── history.ts         # 7 jours d'historique simulé
+    │   └── sources.ts         # donnée simulée -> vraie source future
+    ├── engine/                # TypeScript pur, testé seul
+    │   ├── slots.ts           # la journée : 9 créneaux de 2 h
+    │   ├── events.ts          # les 12 causes (types, libellés, valeurs par défaut)
+    │   ├── causes.ts          # catalogue des causes et effet de chacune sur la journée
+    │   ├── periods.ts         # contexte de la journée : marché, vacances, fête, chaleur…
+    │   ├── activities.ts      # activités des habitants : volumes, profils horaires
+    │   ├── demand.ts          # modèle de demande en eau par zone, heure et période
+    │   ├── waterTypes.ts      # robinet, forage, puits, eau stockée
+    │   ├── impact.ts          # impact de la journée sur chaque type d'eau et sur les foyers
+    │   ├── conditions.ts      # situation d'une journée pour le moteur de répartition
+    │   ├── forecast.ts        # répartition « sans HydroGraph » (les plus proches d'abord)
+    │   ├── rounds.ts          # tours d'eau HydroGraph (créneau garanti, équité)
+    │   ├── explain.ts         # attribution : ce que chaque cause explique, zone par zone
+    │   ├── equity.ts          # indice d'équité (vue mairie)
+    │   ├── messages.ts        # messages aux familles
+    │   └── __tests__/         # 60 tests
+    ├── store/                 # état partagé (causes, période, mode de carte) et calculs dérivés
+    ├── components/            # carte, fiche de zone, tiroir d'incidents, timelapse, etc.
+    └── views/                 # carte, opérateur, mairie, familles
 ```
 
 ---
 
 ## 5. Modèle de données
 
+Les types ci-dessous sont ceux du code (voir `src/data` et `src/engine`).
+
 ```ts
 // data/network.ts
-export type ZoneId = 'Z1' | 'Z2' | 'Z3' | 'Z4' | 'Z5' | 'Z6';
-
 export interface Zone {
-  id: ZoneId;
-  name: string;
-  households: number;       // nombre de foyers
-  demandPeak: number;       // demande en heure de pointe (m3/h)
-  demandBase: number;       // demande hors pointe (m3/h)
-  depth: number;            // distance au château d'eau, en sauts de conduite (0 = proche)
-  languages: Lang[];        // langues des messages
-  path: string;             // tracé SVG
-  centroid: [number, number];
+  id: ZoneId                // 'Z1' à 'Z6'
+  name: string
+  households: number        // nombre de foyers (simulé, modifiable depuis l'écran Opérateur)
+  demand: number            // demande de référence au réseau, creux de journée (unités de débit simulées)
+  depth: number             // distance au château d'eau, en sauts de conduite (0 = proche)
+  wells: boolean
 }
 
-export interface Pipe {
-  id: string;               // 'P1'...
-  from: ZoneId | 'TOWER';
-  to: ZoneId;
-  broken: boolean;          // modifié par l'événement « tuyau cassé »
-}
-
-export interface Network {
-  tower: { capacity: number };   // débit total du château d'eau (m3/h)
-  zones: Zone[];
-  pipes: Pipe[];
-}
-
-export type Lang = 'fr' | 'fon' | 'goun' | 'yoruba';
-
-// engine/events.ts
+// engine/events.ts : douze causes, cumulables
 export type EventType =
-  | 'power_cut'      // coupure de courant      (démo)
-  | 'heavy_rain'     // forte pluie             (démo)
-  | 'pipe_burst'     // tuyau cassé             (démo)
-  | 'peak_hour'      // heure de pointe         (calendrier)
-  | 'dry_season'     // saison sèche            (après)
-  | 'market_day';    // jour de marché          (après)
+  | 'power_cut' | 'voltage_drop' | 'pump_failure'          // énergie et pompes
+  | 'maintenance' | 'pipe_burst' | 'leak'                  // réseau
+  | 'heavy_rain' | 'flood'                                 // météo
+  | 'dry_season' | 'heat_wave'                             // ressource
+  | 'market_day' | 'festival'                              // demande
 
 export interface HydroEvent {
-  type: EventType;
-  startedAt: number;        // heure de la journée (0-24)
-  durationH: number;
-  origin?: ZoneId;          // pour « tuyau cassé »
+  type: EventType
+  startsAt: number          // heure de début (0-24)
+  durationH: number
+  pipe?: PipeId             // pour « tuyau cassé »
+  zones?: ZoneId[]          // pour les causes locales (panne de forage, inondation)
+}
+
+// engine/periods.ts : le contexte de la journée
+export interface PeriodContext {
+  id: string; label: string
+  dow: number               // 0 = dimanche … 6 = samedi
+  month: number
+  schoolInSession: boolean; marketDay: boolean; festival: boolean
+  tempC: number
+}
+
+// data/profiles.ts : le profil de chaque zone
+export interface ZoneProfile {
+  hhSize: number
+  mix: { network: number; borehole: number; well: number }   // part des foyers par source (simulé)
+  storageHours: number                                       // autonomie de la réserve à domicile
+  floodExposure: number                                      // exposition aux crues (simulé)
+  counts: OsmCounts                                          // écoles, marchés, santé… (OpenStreetMap, réel)
 }
 
 // engine/forecast.ts
-export type Status = 'ok' | 'warn' | 'risk';
-
 export interface ZoneForecast {
-  zone: ZoneId;
-  status: Status;
-  hoursOfWater: number;     // heures d'eau prévues sur la journée
-  slots: Slot[];            // créneaux de service
-  reason: string;           // « Coupure de courant : la pompe est à l'arrêt »
-  advice: string;           // « Remplissez vos bidons avant 14 h »
-  confidence: number;       // 0-1, affiché en clair (« confiance moyenne »)
-  qualityRisk: boolean;     // vrai après forte pluie ou tuyau cassé
+  zone: ZoneId
+  status: 'ok' | 'warn' | 'risk'
+  hoursOfWater: number      // heures d'eau au robinet sur la journée
+  slots: Slot[]             // créneaux de service
+  qualityRisk: boolean      // trop de foyers exposés à une eau à risque
+  impact?: ZoneImpact       // impact par type d'eau : part des foyers, heures, risque sanitaire, repli
+}
+
+// engine/impact.ts
+export interface TypeImpact {
+  type: 'network' | 'borehole' | 'well' | 'stored'
+  nominal: number           // part des foyers, un jour normal
+  share: number             // part aujourd'hui, repli compris
+  hours: number             // heures d'accès dans la journée
+  quality: number           // risque sanitaire 0..1
+  level: 'good' | 'watch' | 'risk'
+  note: string
+}
+
+// engine/explain.ts
+export interface CauseShare {
+  cause: EventType | 'period'
+  hoursLost: number         // heures d'eau perdues à cause d'elle (négatif : gagnées)
+  exposedDelta: number      // points de foyers exposés en plus
 }
 
 export interface Slot { start: number; end: number; guaranteed?: boolean }
@@ -236,21 +237,7 @@ export interface Slot { start: number; end: number; guaranteed?: boolean }
 
 ### Transparence des sources (critère de réussite n°3)
 
-Chaque donnée simulée porte sa vraie source future :
-
-```ts
-// data/sources.ts
-export const SOURCES = {
-  calendar:    { demo: 'Calendrier codé en dur',       real: 'Calendrier officiel + jours de marché',  badge: 'Disponible' },
-  weather:     { demo: 'Pluie simulée',                real: 'API météo (ex. Open-Meteo)',             badge: 'Immédiat' },
-  outages:     { demo: 'Coupure déclenchée au clic',   real: 'Annonces SoNEB / SBEE (scraping)',       badge: 'À automatiser' },
-  residents:   { demo: 'Réponses simulées',            real: 'WhatsApp, SMS, code court',              badge: 'Dès le lancement' },
-  sensors:     { demo: '—',                            real: 'Capteurs de pression bas coût (SMS)',    badge: 'À fabriquer' },
-  operator:    { demo: '—',                            real: 'Données de pompage SoNEB / SBEE',        badge: 'À négocier' },
-} as const;
-```
-
-Le composant `SourceBadge` affiche une petite pastille « Simulé · vraie source : API météo » à côté de chaque donnée dans la démo.
+Chaque donnée simulée porte sa vraie source future. La liste est dans `src/data/sources.ts` et s'affiche dans « D'où viennent les données ? » : calendrier, données publiques (météo, annonces), **activités des habitants** (OpenStreetMap réel + volumes simulés), **types d'eau et qualité** (simulés), habitants, capteurs, partenariat opérateur, fond de carte. Chaque cause du catalogue (`causes.ts`) porte aussi sa vraie source future.
 
 ---
 
@@ -290,91 +277,108 @@ Fichiers : `src/data/network.ts` (réseau), `geo.ts` (coordonnées, contours, co
 
 ## 7. Le moteur
 
-Tout le moteur est en **TypeScript pur**, sans dépendance à React, pour être testé seul.
+Tout le moteur est en **TypeScript pur**, sans dépendance à React, pour être testé seul. Il se lit en quatre couches : **ce qui se passe** (causes et période), **combien d'eau on demande** (activités des habitants), **comment on la répartit** (réseau, tours d'eau), **ce que cela change pour chaque type d'eau** (impact et familles).
 
 ### 7.1 Graphe (`graph.ts`)
 
 - `downstream(zone)` : toutes les zones qui dépendent d'une zone (ex. `downstream('Z2') = [Z4, Z6]`).
 - `pathFromTower(zone)` : la liste des conduites traversées.
-- `isReachable(zone, brokenPipes)` : vrai si une conduite cassée n'est pas sur le chemin.
+- `isReachable(zone, brokenPipes)` : vrai si aucune conduite cassée n'est sur le chemin.
 
-C'est ce qui répond à « quelles zones sont touchées par un événement ».
+### 7.2 Les causes (`events.ts`, `causes.ts`)
 
-### 7.2 Événements (`events.ts`)
+Douze causes, **cumulables** le même jour. Chacune est une petite fonction qui modifie le scénario de la journée (capacité du château d'eau, conduites coupées, courant, nappe, qualité, contexte). Une cause ajoutée à `CAUSES` apparaît toute seule dans le tiroir « Simuler des incidents ».
 
-| Événement | Effet sur le réseau | Effet sur la qualité |
+| Groupe | Cause | Effet principal |
 |---|---|---|
-| **Coupure de courant** | Capacité du château d'eau divisée par 4 pendant `durationH` (ex. 4 h) | — |
-| **Forte pluie** | Aucun effet sur le débit | `qualityRisk = true` pour les zones à puits (Z5, Z6) et message « traiter l'eau » |
-| **Tuyau cassé** (P3 par défaut) | La conduite devient `broken` : Z4 et Z6 perdent leur alimentation | `qualityRisk = true` en aval de la casse |
-| Heure de pointe (calendrier) | Demande × 1,5 de 6 h-8 h et 18 h-20 h ; Z4 et Z6 perdent de la pression | — |
+| Énergie et pompes | Coupure de courant | Station à 25 % pendant la coupure ; forages sur réseau électrique à l'arrêt |
+| | Tension électrique trop basse | Station à 65 % le soir ; forages moins productifs |
+| | Panne de pompe ou de forage | Station à 50 % ; forages des zones désignées à 0 |
+| Réseau | Travaux de l'opérateur | Station à 70 % pendant les travaux |
+| | Tuyau cassé | Conduite coupée : zones en aval sans eau, eau qui revient suspecte |
+| | Fuites sur le réseau | Station à 85 %, pression perdue en bout de réseau |
+| Météo | Forte pluie | Puits et eau stockée à risque ; la pluie recueillie allonge la réserve |
+| | Inondation | Puits, forages, réseau et réserves à risque dans les zones basses |
+| Ressource | Saison sèche | Puits qui tarissent, forages moins productifs, demande agricole en hausse |
+| | Pic de chaleur | On consomme plus, l'eau stockée se dégrade plus vite |
+| Demande | Jour de marché | Demande des marchés × 2,5 |
+| | Fête ou jour férié | Demande des ménages et de la restauration en hausse |
 
-Chaque événement est une fonction pure : `(network, event) → network modifié`. L'état précédent n'est jamais muté, pour pouvoir **revenir à la normale** d'un clic.
+La **période** (`periods.ts`) est le contexte de la journée : huit jeux de réglages (mercredi ordinaire, jour de marché, vendredi, samedi, dimanche, vacances scolaires, jour de fête, pic de chaleur). Les causes de situation (marché, fête, chaleur, saison sèche) modifient ce contexte.
 
-### 7.3 Prévision (`forecast.ts`)
+### 7.3 Le modèle de demande (`activities.ts`, `demand.ts`, `data/profiles.ts`)
 
-Pour chaque zone :
+Il répond à : **quelles zones vont consommer le plus d'eau, et à quelle heure ?**
 
-1. Calculer le débit disponible à l'entrée de la zone (capacité de la tour moins ce que consomment les zones amont).
-2. Si une conduite du chemin est cassée → 0 h d'eau.
-3. Appliquer les pointes : réduire le débit de bout de réseau aux heures concernées.
-4. Convertir en `hoursOfWater` et en `status` :
+```text
+demande(zone, heure, période) = somme sur les activités de
+    unités × volume par unité × variation selon la période × profil horaire
+```
 
-| Heures d'eau prévues | Statut |
+| Activité | Unités (source) | Ce qui la fait varier |
+|---|---|---|
+| Ménages | foyers × 5 personnes | week-end, chaleur, fête ; double pointe matin et soir |
+| Écoles, université | nombre d'établissements (OpenStreetMap) | présentes en semaine, absentes en vacances et le dimanche |
+| Santé | nombre d'établissements (OpenStreetMap) | constante |
+| Marchés | nombre de marchés (OpenStreetMap) | jour de marché |
+| Restauration, hôtels | nombre d'établissements (OpenStreetMap) | week-end, fête |
+| Lavage auto | nombre de sites (OpenStreetMap) | samedi, saison sèche (poussière) |
+| Mosquées, églises | nombre de lieux (OpenStreetMap) | vendredi pour les mosquées, dimanche pour les églises |
+| Maraîchage | nombre de parcelles (OpenStreetMap) | saison sèche : arrosage × 3 |
+| Artisanat et ateliers | nombre de sites (OpenStreetMap) | jours ouvrés |
+
+- **Données réelles** : le nombre d'équipements par zone vient d'OpenStreetMap (`npx tsx scripts/fetch-osm.ts`, relevé du 21/10/2026). **La couverture est inégale** : Ouèdo et Hêvié sont très peu cartographiées, donc leur demande repose presque entièrement sur les ménages.
+- **Hypothèses de calage** (à valider avec la SoNEB et par des relevés de compteurs) : volume par unité (30 L par habitant et par jour, 2 m³ par école, 45 m³ pour l'université, 40 m³ par marché…), profils horaires, variations de période.
+- **Lien avec la répartition** : `zone.demand` reste le niveau de référence du réseau (modifiable depuis l'écran Opérateur). Le modèle donne la **forme** : l'indice de demande d'un créneau (1 = creux de journée) vaut la demande du créneau divisée par la demande moyenne des créneaux creux d'un jour ordinaire.
+
+### 7.4 Les quatre types d'eau (`waterTypes.ts`, `impact.ts`)
+
+Une famille ne boit pas qu'au robinet. Chaque zone a un **mélange simulé** de sources (robinet, forage, puits) et une réserve à domicile. Chaque cause touche ces types différemment, et c'est ce qui se voit dans l'onglet « Types d'eau » de la fiche de zone.
+
+| Type d'eau | Ce qui le fait manquer | Ce qui le rend dangereux |
+|---|---|---|
+| **Robinet** (réseau SoNEB) | courant, pompe, pression, conduite cassée, rationnement | conduite cassée, crues, pression basse |
+| **Forage / borne fontaine** | courant, nappe, panne de pompe | crues |
+| **Puits** | nappe qui baisse en saison sèche | pluie, crues, densité de bâtiments (base plus élevée) |
+| **Eau stockée** | la réserve (10 h) couvre la coupure du robinet, pas toute la journée | chaleur, durée de stockage, source qui la remplit |
+
+Quand le robinet coule peu, **les foyers se rabattent** (40 % vers un forage, 60 % vers un puits). C'est le mécanisme clé : la coupure de courant seule ne pollue rien, la pluie seule ne touche presque que les puits, mais **les deux ensemble** poussent les familles vers des puits pollués. HydroGraph calcule la part des foyers exposés, et une zone passe en **alerte qualité** quand elle dépasse 30 %.
+
+Seuils du risque sanitaire (0 à 1) : sûre sous 0,3 ; à surveiller de 0,3 à 0,55 ; à risque au-delà. Toutes les constantes sont des hypothèses de calage, à valider avec des analyses de qualité de l'eau.
+
+### 7.5 Répartition : sans HydroGraph, puis tours d'eau (`forecast.ts`, `rounds.ts`)
+
+La journée de service va de 5 h à 23 h en **9 créneaux de 2 h**. À chaque créneau, le débit ne suffit pas à servir toutes les zones.
+
+- **Sans HydroGraph** (`forecast`) : le réseau sert les zones dans l'ordre, des plus proches du château d'eau aux plus éloignées, et **s'arrête au premier manque de débit**. Sauter une zone proche pour en servir une plus loin ferait gagner des heures à une zone quand la capacité baisse : ce défaut, révélé par un test, est corrigé.
+- **Tours d'eau HydroGraph** (`planRounds`) : un créneau est réservé d'avance à la zone la plus éloignée encore reliée (`guaranteed`), puis chaque créneau va d'abord aux zones **les moins servies jusque-là**, la distance départageant les ex æquo.
+
+| Heures d'eau au robinet | Statut |
 |---|---|
 | ≥ 14 h | `ok` (vert) |
 | 6 h à 13 h | `warn` (orange) |
 | < 6 h | `risk` (rouge) |
 
-5. Calculer la `confidence` : 0,9 pour le calendrier seul, plus basse si l'événement est « annoncé » plutôt que « confirmé », plus basse en bout de réseau. Toujours **afficher** la confiance en clair, ce qui répond au risque « prévisions inexactes ».
+Une zone en alerte qualité est déclassée d'un cran. La `confidence` affichée est plus basse en bout de réseau et quand une cause est en cours.
 
-### 7.4 Tours d'eau (`rounds.ts`) : l'idée qui nous distingue
+### 7.6 Attribution des causes (`explain.ts`)
 
-La journée de service va de 5 h à 23 h, en **créneaux de 2 h** (9 créneaux). À chaque créneau, le débit disponible ne suffit pas à servir toutes les zones : il faut choisir.
+Pour chaque zone, on rejoue la journée **en retirant une cause à la fois** et on mesure ce qu'elle changeait : heures d'eau perdues, et points de foyers exposés en plus. La période compte comme une cause. C'est ce qui produit « −4 h : coupure de courant » ou « +72 pts de foyers exposés : forte pluie » dans la fiche de zone. Les parts ne s'additionnent pas toujours exactement (deux causes peuvent s'amplifier), d'où l'écart global affiché à part.
 
-**Algorithme (glouton avec priorité d'équité)**
+### 7.7 Équité (`equity.ts`)
 
-```text
-pour chaque créneau t de 5h à 23h :
-    débit_dispo = capacité(t)            # réduit pendant une coupure
-    pour chaque zone non coupée, calculer un score :
-        score = w1 * heures_sans_eau_cumulées(zone)     # équité : celui qui attend le plus passe d'abord
-              + w2 * depth(zone)                         # bout de réseau favorisé
-              + w3 * demande(zone, t)                    # pointes
-    trier les zones par score décroissant
-    servir les zones dans l'ordre tant que débit_dispo >= demande(zone, t)
-        (en passant par les conduites : servir une zone suppose que les conduites amont sont ouvertes)
+Pour la vue mairie, sur 7 jours : classement des zones « régulièrement oubliées » et **indice d'équité de 0 à 100** : `100 × (1 − écart / 24)`.
 
-# Garantie : la zone de depth maximale reçoit au moins un créneau garanti
-# si le débit total le permet, en réservant le créneau avant le glouton.
-si aucune zone depth max n'est servie :
-    échanger avec la zone au score le plus bas servie dans le créneau le plus proche
-    marquer le créneau comme guaranteed = true
-```
+### 7.8 Tests (Vitest, 60 tests)
 
-Paramètres de départ à ajuster à l'oeil : `w1 = 1.0`, `w2 = 0.6`, `w3 = 0.3`.
-
-**Critère de réussite testé** : après une coupure de courant, `Z6` reçoit au moins un créneau `guaranteed`, même quand `Z1` a tout le reste. Voir les tests ci-dessous.
-
-### 7.5 Équité (`equity.ts`)
-
-Pour la vue mairie, sur 7 jours :
-
-- `avgHoursWithoutWater(zone)` : 24 moins les heures d'eau, moyennées.
-- `equityGap` : écart entre la zone la mieux servie et la moins bien servie, en heures.
-- `forgottenRank` : classement des zones « régulièrement oubliées » (nombre de jours où la zone est dans le dernier quart).
-- Un **indice d'équité de 0 à 100** : `100 × (1 − gap / 24)`, simple à lire pour un élu.
-
-### 7.6 Tests obligatoires (Vitest)
-
-| Test | Attendu |
+| Domaine | Ce que les tests garantissent |
 |---|---|
-| Coupure de courant | Au moins une zone change de statut |
-| Forte pluie | Au moins une zone passe en `qualityRisk` |
-| Tuyau cassé P3 | Z4 et Z6 passent en rouge, Z1/Z2/Z3/Z5 inchangées |
-| Tours d'eau après coupure | Z6 a un créneau `guaranteed` |
-| Retour à la normale | Le réseau revient à l'état initial |
-| Aucun événement | Le plan est identique d'une exécution à l'autre (déterminisme) |
+| Graphe, prévision | chemins et zones en aval, déterminisme, créneau garanti, zone coupée jamais servie |
+| Causes | chacune a libellé, valeur par défaut et source ; un événement seul = une liste |
+| Demande | référence = 1 ; écoles absentes en vacances ; mosquées le vendredi, églises le dimanche ; marché ; chaleur ; pic matin ou soir |
+| Types d'eau | la pluie pollue les puits mais pas le robinet ; la coupure retire des heures au robinet et aux forages, pas aux puits ; saison sèche ; rupture ; repli ; inondation des zones basses |
+| Cumul | coupure + pluie alertent des zones que la pluie seule n'alerte pas ; ajouter une cause n'améliore jamais une zone |
+| Attribution | la pluie explique des foyers exposés, la coupure des heures, la période apparaît |
 
 ---
 
@@ -391,12 +395,16 @@ Menu en haut, dans le cadre : **Carte · Opérateur · Mairie · Familles**, plu
 
 ### 8.2 Carte du jour : F1, F2, F3
 
-- Quatre tuiles : zones bien servies, heures d'eau moyennes, zones à risque, écart entre quartiers.
-- **Vraie carte 3D d'Abomey-Calavi** : zones en relief (hauteur = heures d'eau), conduites où l'eau circule, château d'eau.
-- **Fiche de zone** flottante à droite : statut, heures, créneaux, raison, conseil, confiance.
-- **Timelapse** en bas de la carte : lecture de la journée de 5 h à 22 h ; seules les zones qui ont l'eau à cette heure restent colorées et en relief.
-- **Événements** : notification en haut à gauche, puis bouton **« Recalculer les tours d'eau »** qui balaie la carte.
-- Bouton **« D'où viennent les données ? »** : chaque donnée simulée et sa vraie source future (critère n°3).
+- **Quatre tuiles** qui changent avec le mode : zones bien servies, heures d'eau moyennes, zones à risque, écart entre quartiers (mode *Disponibilité*) ; ou demande totale, zone la plus gourmande, pic de la ville, écart avec un mercredi ordinaire (mode *Demande prévue*).
+- **Barre de vue** : *Disponibilité* ou *Demande prévue*, et la **période** (mercredi ordinaire, jour de marché, vacances…). Pas de boutons d'événements en permanence : ce serait un outil de démo, pas un produit.
+- **Vraie carte 3D d'Abomey-Calavi** : en mode *Disponibilité*, hauteur et couleur = heures d'eau ; en mode *Demande prévue*, bleu pâle à bleu profond = eau demandée.
+- **Fiche de zone** flottante, avec trois onglets :
+  - *Aujourd'hui* : heures, créneaux, **les causes cumulées avec les heures perdues par cause**, conseil, confiance ;
+  - *Types d'eau* : robinet, forage, puits, réserve — part des foyers, heures d'accès, risque sanitaire, repli des foyers, foyers exposés ;
+  - *Demande* : qui consomme (par activité), heure par heure, et selon la période.
+- **Timelapse** : lecture de la journée de 5 h à 22 h ; en mode *Demande*, les zones montent et descendent avec la consommation.
+- **Simuler des incidents** (bouton dans l'en-tête) : tiroir de démonstration avec les 12 causes, cumulables. Une notification s'affiche, puis le bouton **« Recalculer les tours d'eau »** balaie la carte.
+- **« D'où viennent les données ? »** : chaque donnée simulée et sa vraie source future.
 
 ### 8.2 bis Mode démo guidé
 
@@ -487,17 +495,19 @@ Aujourd'hui : mercredi 21 octobre. Démo jeudi 22. Priorité absolue : **un flux
 
 ## 11. Script de démo (5 minutes)
 
+Le bouton **« ▶ Lancer la démo »** joue ces étapes, avec la phrase à dire affichée (flèches ← → pour avancer).
+
 | Min | Action | Ce qu'on dit |
 |---|---|---|
-| 0:00 | Accueil, clic sur « Voir la carte du jour » | « Au Bénin, l'eau existe sur le papier, pas toujours au robinet. HydroGraph est la météo de l'eau. » |
-| 0:30 | Carte : six zones colorées | « Voici une ville, six zones. Vert, l'eau toute la journée. Rouge, risque de manque. » |
-| 1:00 | Toucher Z6 | « Hêvié, en bout de réseau : 0 heure d'eau, la raison, et un conseil pour les familles. » |
-| 1:45 | Clic sur ⚡ Coupure de courant | « La pompe s'arrête. Regardez les zones changer de couleur. » |
-| 2:30 | Vue opérateur, avant/après | « HydroGraph recalcule les tours d'eau. Même après la coupure, la zone la plus éloignée reçoit un créneau garanti. » |
-| 3:15 | Vue familles, message | « Chaque famille est prévenue, écrit ou vocal, dans sa langue. » |
-| 3:45 | 🌧 Forte pluie, puis 🔧 tuyau cassé (rapide) | « Autre événement, autre conséquence : ici, un risque de qualité. » |
-| 4:15 | Vue mairie | « Pour la mairie : quels quartiers sont régulièrement oubliés. On mesure le service réellement reçu, pas seulement les ouvrages. » |
-| 4:45 | Slide ou parole de clôture | « Tout ceci est simulé. Demain : signalements d'habitants par WhatsApp, données publiques, puis un pilote dans une commune. » |
+| 0:00 | Accueil, carte du jour | « Au Bénin, l'eau existe sur le papier, pas toujours au robinet. HydroGraph est la météo de l'eau. » |
+| 0:30 | Timelapse | « Heure par heure, on voit quelles zones ont l'eau. Les quartiers en bout de réseau sont servis en dernier. » |
+| 1:00 | Zone Hêvié, onglet « Aujourd'hui » | « En bout de réseau : quelques heures d'eau seulement. La fiche donne les causes et un conseil. » |
+| 1:40 | Mode « Demande prévue », période « Jour de marché » | « Le modèle part des activités des habitants (écoles, marchés, santé, restauration…) pour prévoir où l'on consomme le plus, et à quelle heure. » |
+| 2:20 | Simuler : coupure de courant + forte pluie | « Deux causes le même jour. Elles touchent des types d'eau différents. » |
+| 3:00 | Onglet « Types d'eau » | « Quand le robinet coule moins, les familles se rabattent sur les puits, et c'est là que la pluie pollue. On voit qui est exposé. » |
+| 3:40 | « Recalculer les tours d'eau » | « HydroGraph recalcule : Hêvié reçoit un créneau garanti et l'écart entre quartiers fond. » |
+| 4:10 | Vue familles, puis vue mairie | « Chaque famille est prévenue. La mairie voit les quartiers oubliés : on mesure le service réellement reçu. » |
+| 4:45 | « D'où viennent les données ? » | « Tout est simulé, mais chaque donnée a sa vraie source. Demain : signalements d'habitants, données publiques, un pilote. » |
 
 **Plan B** : si le déploiement échoue, `dist/` ouvert en local ; si tout échoue, une vidéo d'écran enregistrée la veille.
 
@@ -507,13 +517,13 @@ Aujourd'hui : mercredi 21 octobre. Démo jeudi 22. Priorité absolue : **un flux
 
 Reprend les critères du cahier des charges.
 
-- [ ] Chaque événement (coupure, pluie, tuyau cassé) change **au moins une couleur** sur la carte
+- [ ] Chaque cause change **au moins une couleur ou un risque sanitaire** sur la carte (pluie : le risque, pas le débit)
 - [ ] La zone la plus éloignée (Z6) reçoit un créneau garanti après une coupure
 - [ ] Chaque donnée simulée affiche sa **vraie source future**
 - [ ] Un jury non technique comprend la démo **sans explication**
 - [ ] Les couleurs ont aussi une icône et un libellé
 - [ ] Le niveau de confiance est visible sur les prévisions
-- [ ] « Revenir à la normale » fonctionne
+- [ ] « Tout effacer » (tiroir d'incidents) ramène à la journée normale
 - [ ] Tests du moteur au vert
 - [ ] Fonctionne hors connexion (build local)
 - [ ] Lisible sur grand écran de projection (textes ≥ 18 px sur les vues clés)
@@ -541,16 +551,18 @@ Reprend les critères du cahier des charges.
 | Bloc | Contenu | État |
 |---|---|---|
 | 1 | Fondations, DA claire, accueil réaliste (shader WebGL : surface, rayons, reflets ; titre immergé avec réfraction) | Fait |
-| 2 | Moteur : graphe, événements, prévision, tours d'eau, équité, messages (17 tests) | Fait |
+| 2 | Moteur : graphe, prévision, tours d'eau, équité, messages | Fait |
 | 3 | Vraie carte 3D d'Abomey-Calavi (MapLibre), zones en relief, conduites animées, fiche de zone flottante | Fait |
-| 4 | Événements avec effets sur la carte (château d'eau qui vacille, pluie, rupture), notifications, bouton « Recalculer » | Fait |
+| 4 | Effets visibles sur la carte (château d'eau qui vacille, pluie, rupture), notifications, bouton « Recalculer » | Fait |
 | 5 | Vue opérateur : plan avant/après, créneau garanti | Fait |
 | 6 | Messages aux familles (français, WhatsApp/SMS, voix du navigateur) | Fait. Fon, goun, yoruba : en attente de relecture |
 | 7 | Vue mairie : indice d'équité, quartiers oubliés | Fait |
 | 8 | Timelapse de la journée sur la carte | Fait |
 | 9 | Panneau « D'où viennent les données ? » (critère n°3) | Fait |
 | 10 | Mode démo guidé (script en 8 étapes) | Fait |
-| 11 | Relecture des traductions, vérification des chiffres, déploiement, répétition | À faire |
+| 11 | **Modèle en profondeur** : 12 causes cumulables, 4 types d'eau (robinet, forage, puits, réserve), repli des foyers, attribution des heures perdues par cause | Fait |
+| 12 | **Modèle de demande** : activités des habitants (données OpenStreetMap), profils horaires, 8 périodes, vue « Demande prévue » (60 tests) | Fait |
+| 13 | Calibrage avec de vraies données (compteurs, qualité de l'eau), relecture des traductions, vérification des chiffres, déploiement, répétition | À faire |
 
 Liens directs pour la démo : `/#operateur`, `/#mairie`, `/#familles`.
 
@@ -571,7 +583,16 @@ npm run test
 # Build statique (pour la démo hors-ligne et le déploiement)
 npm run build
 npm run preview
+
+# Serveur local des alertes, abonnés et réseau (base de données et clés dans .env)
+npm run api
+
+# Rafraîchir les activités des zones depuis OpenStreetMap (écrit src/data/osm-activities.ts)
+npx tsx scripts/fetch-osm.ts
 ```
+
+> Un clone neuf doit d'abord faire `npm install` : le build lance `prisma generate`.
+> Le script OpenStreetMap peut échouer quand le service Overpass est saturé : il garde un cache par zone dans `scripts/.osm-cache.json` et reprend là où il s'est arrêté.
 
 Initialisation du projet (une seule fois) :
 

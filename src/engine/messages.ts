@@ -1,5 +1,6 @@
 import type { Zone } from '../data/network'
 import type { EventType } from './events'
+import type { CauseShare } from './explain'
 import type { Slot, Status, ZoneForecast } from './forecast'
 
 export const STATUS_LABEL: Record<Status, string> = {
@@ -29,11 +30,32 @@ export function slotRanges(slots: Slot[]): string[] {
   return out.map((r) => `${h(r.start)}-${h(r.end)}`)
 }
 
-export function reasonFor(event: EventType | null, zone: Zone, f: ZoneForecast, plan: boolean): string {
-  if (f.hoursOfWater === 0 && event === 'pipe_burst') return 'Une conduite en amont est cassée : la zone n’est plus alimentée.'
-  if (event === 'power_cut') return 'Coupure de courant : la pompe tourne au ralenti pendant plusieurs heures.'
-  if (event === 'heavy_rain') return f.qualityRisk ? 'Forte pluie : l’eau des puits et l’eau stockée risquent d’être salies.' : 'Forte pluie : pas d’effet sur le débit de cette zone.'
-  if (event === 'pipe_burst') return 'Tuyau cassé ailleurs sur le réseau : la zone n’est pas coupée.'
+/** Une phrase par cause, utilisée dans les messages aux familles. */
+const WHY: Record<EventType, string> = {
+  power_cut: 'Coupure de courant à la station. ',
+  voltage_drop: 'Tension électrique trop basse. ',
+  pump_failure: 'Panne de pompe. ',
+  maintenance: 'Travaux sur le réseau. ',
+  pipe_burst: 'Tuyau cassé en amont. ',
+  leak: 'Fuites sur le réseau. ',
+  heavy_rain: 'Forte pluie prévue. ',
+  flood: 'Inondation. ',
+  dry_season: 'Saison sèche : la nappe est basse. ',
+  heat_wave: 'Forte chaleur. ',
+  market_day: 'Jour de marché : forte demande. ',
+  festival: 'Jour de fête : forte demande. ',
+}
+
+/**
+ * Pourquoi la zone a ce service aujourd'hui. Avec `causes` (voir explain.ts), la phrase vient des vraies
+ * causes cumulées ; sans elles, on retombe sur une explication générale.
+ */
+export function reasonFor(_event: EventType | null, zone: Zone, f: ZoneForecast, plan: boolean, causes?: CauseShare[]): string {
+  if (causes && causes.length > 0) {
+    const [top, ...rest] = causes
+    const effect = top.hoursLost > 0 ? `${top.hoursLost} h d’eau en moins` : top.hoursLost < 0 ? `${-top.hoursLost} h d’eau en plus` : top.exposedDelta > 0 ? `${Math.round(top.exposedDelta * 100)} points de foyers exposés en plus` : 'effet sur la qualité de l’eau'
+    return `${top.label} : ${effect}${rest.length ? `, avec ${rest.length} autre${rest.length > 1 ? 's' : ''} cause${rest.length > 1 ? 's' : ''} cumulée${rest.length > 1 ? 's' : ''}` : ''}.`
+  }
   if (plan) return 'Tours d’eau HydroGraph : les créneaux sont répartis pour que personne ne soit oublié.'
   if (f.status === 'ok') return 'Zone proche du château d’eau : la pression reste bonne toute la journée.'
   return `Zone éloignée du château d’eau : la pression baisse aux heures de pointe${zone.depth >= 3 ? ' et l’eau arrive en dernier' : ''}.`
@@ -42,7 +64,10 @@ export function reasonFor(event: EventType | null, zone: Zone, f: ZoneForecast, 
 export function adviceFor(event: EventType | null, f: ZoneForecast): string {
   if (f.qualityRisk) return 'Faites bouillir ou traitez l’eau avant de la boire, et lavez les récipients.'
   if (f.hoursOfWater === 0) return 'Gardez vos réserves pour boire et cuisiner, et allez à la borne la plus proche.'
+  const fallback = f.impact
+  if (fallback && fallback.fallbackShare >= 0.3 && fallback.types.well.level !== 'good') return 'Beaucoup de foyers se rabattent sur les puits : traitez l’eau avant de la boire.'
   if (event === 'power_cut') return 'Remplissez vos bidons dès que l’eau revient et couvrez-les.'
+  if (event === 'heat_wave') return 'Videz et renouvelez l’eau stockée plus souvent : elle se dégrade vite par forte chaleur.'
   if (f.status === 'risk') return 'Stockez l’eau dans des récipients fermés pendant les créneaux.'
   if (f.status === 'warn') return 'Remplissez vos récipients pendant les créneaux, avant les heures de pointe.'
   return 'Aucune précaution particulière aujourd’hui.'
@@ -72,7 +97,7 @@ export function buildMessage(event: EventType | null, zone: Zone, f: ZoneForecas
       : f.status === 'ok'
         ? 'L’eau coule presque toute la journée.'
         : `L’eau viendra ${ranges.slice(0, 3).join(', ')}.`
-  const why = event === 'power_cut' ? 'Coupure de courant à la station. ' : event === 'pipe_burst' && f.hoursOfWater === 0 ? 'Tuyau cassé en amont. ' : event === 'heavy_rain' ? 'Forte pluie prévue. ' : ''
+  const why = event && (event !== 'pipe_burst' || f.hoursOfWater === 0) ? WHY[event] : ''
   const guaranteed = f.slots.some((s) => s.guaranteed) && plan ? ' Un créneau vous est garanti.' : ''
   return {
     title: zone.name,

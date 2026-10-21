@@ -9,12 +9,12 @@ export interface AiPlanResponse {
 }
 
 /** Demande au serveur une proposition de tours d'eau par l'IA (voir server/aiPlan.ts et api/plan/ai.ts). */
-export async function requestAiPlan(event: EventType | null): Promise<AiPlanResponse | { error: string }> {
+export async function requestAiPlan(event: EventType | null, extra?: { events?: EventType[]; period?: string }): Promise<AiPlanResponse | { error: string }> {
   try {
     const res = await fetch('/api/plan/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event }),
+      body: JSON.stringify({ event, ...extra }),
     })
     const body = await res.json().catch(() => ({}))
     return res.ok ? body : { error: body.error ?? `HTTP ${res.status}` }

@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect } from 'react'
 import { useHydro } from '../store/useHydro'
 
-type HydroPatch = Partial<Pick<ReturnType<typeof useHydro.getState>, 'view' | 'event' | 'plan' | 'zone' | 'hour' | 'playing' | 'sourcesOpen'>>
+type HydroPatch = Partial<Pick<ReturnType<typeof useHydro.getState>, 'view' | 'event' | 'causes' | 'plan' | 'zone' | 'hour' | 'playing' | 'sourcesOpen' | 'mapMode' | 'period' | 'zoneTab' | 'simOpen'>>
 
 interface Step {
   title: string
@@ -15,11 +15,13 @@ interface Step {
 
 /** Le script de démo de 5 minutes du README, joué pas à pas. */
 const STEPS: Step[] = [
-  { title: 'La météo de l’eau', text: 'Au Bénin, l’eau existe sur le papier, pas toujours au robinet. Voici Abomey-Calavi : six zones alimentées par un château d’eau.', apply: { view: 'carte', event: null, plan: false, hour: null, playing: false, sourcesOpen: false }, overview: true },
+  { title: 'La météo de l’eau', text: 'Au Bénin, l’eau existe sur le papier, pas toujours au robinet. Voici Abomey-Calavi : six zones alimentées par un château d’eau.', apply: { view: 'carte', event: null, causes: [], mapMode: 'service', period: 'ordinaire', zoneTab: 'today', plan: false, hour: null, playing: false, sourcesOpen: false, simOpen: false }, overview: true },
   { title: 'Une journée d’eau', text: 'Heure par heure, on voit quelles zones ont l’eau. Les quartiers en bout de réseau sont servis en dernier.', apply: { hour: 5, playing: true }, overview: true },
-  { title: 'Hêvié, la zone oubliée', text: 'Hêvié, en bout de réseau : aucune heure d’eau aujourd’hui. La fiche donne la raison et un conseil simple.', apply: { playing: false, hour: null, zone: 'Z6' } },
-  { title: 'Coupure de courant', text: 'La pompe s’arrête. La carte se recolore : les zones éloignées sont les premières touchées.', apply: { event: 'power_cut', plan: false, view: 'carte' } },
-  { title: 'HydroGraph recalcule', text: 'Les tours d’eau sont recalculés : Hêvié reçoit un créneau garanti et l’écart entre les quartiers fond.', apply: { plan: true } },
+  { title: 'Hêvié, la zone oubliée', text: 'Hêvié, en bout de réseau : quelques heures d’eau seulement. La fiche donne les causes, les types d’eau touchés et un conseil.', apply: { playing: false, hour: null, zone: 'Z6', zoneTab: 'today' } },
+  { title: 'Qui consomme l’eau ?', text: 'Le modèle part des activités des habitants (écoles, marchés, santé, restauration, lieux de culte…) pour prévoir où l’on consomme le plus, et à quelle heure. Un jour de marché, la demande grimpe.', apply: { mapMode: 'demand', period: 'marche', zoneTab: 'demand', hour: null }, overview: true },
+  { title: 'Plusieurs causes à la fois', text: 'Coupure de courant et forte pluie le même jour. Chaque cause touche un type d’eau différent : le robinet et les forages d’un côté, les puits de l’autre.', apply: { mapMode: 'service', period: 'ordinaire', event: 'power_cut', causes: ['power_cut', 'heavy_rain'], plan: false, view: 'carte', zoneTab: 'today' } },
+  { title: 'Robinet, forage, puits, réserve', text: 'Quand le robinet coule moins, les familles se rabattent sur les puits : c’est là que la pluie pollue. HydroGraph montre qui est exposé.', apply: { zoneTab: 'water', zone: 'Z6' } },
+  { title: 'HydroGraph recalcule', text: 'Les tours d’eau sont recalculés : Hêvié reçoit un créneau garanti et l’écart entre les quartiers fond.', apply: { plan: true, zoneTab: 'today' } },
   { title: 'Prévenir les familles', text: 'Chaque famille reçoit l’horaire et un conseil, par WhatsApp ou SMS, à l’écrit ou à l’oral.', apply: { view: 'familles' } },
   { title: 'La vue de la mairie', text: 'La mairie voit les quartiers régulièrement oubliés. On mesure le service réellement reçu, pas seulement l’existence des ouvrages.', apply: { view: 'mairie' } },
   { title: 'Et demain', text: 'Tout ici est simulé, mais chaque donnée a sa vraie source. Ensuite : signalements d’habitants, données publiques, puis un pilote dans une commune.', apply: { sourcesOpen: true } },
@@ -58,8 +60,8 @@ export function DemoTour() {
   return (
     <AnimatePresence>
       {tour !== null && (
-        <motion.div className="fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[60] flex justify-center px-3 sm:justify-end sm:px-6" initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
-          <div className="card w-full max-w-md p-4 shadow-[0_20px_60px_rgba(20,60,120,0.25)]">
+        <motion.div className="fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[60] flex justify-center px-3 sm:inset-x-auto sm:bottom-auto sm:left-6 sm:top-4 sm:px-0" initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -30, opacity: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
+          <div className="card w-full max-w-md p-4 shadow-[0_20px_60px_rgba(20,60,120,0.25)] sm:w-[26rem]">
             <div className="flex items-center justify-between gap-3">
               <div className="flex gap-1.5" aria-hidden>
                 {STEPS.map((_, i) => (

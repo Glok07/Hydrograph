@@ -5,7 +5,7 @@ import { FamilyView } from '../views/FamilyView'
 import { OperatorView } from '../views/OperatorView'
 import { VIEWS, useHydro } from '../store/useHydro'
 import type { View } from '../store/useHydro'
-import { EventBar } from './EventBar'
+import { IncidentButton, IncidentDrawer } from './IncidentDrawer'
 
 const BODY: Record<View, () => React.JSX.Element> = {
   carte: CarteView,
@@ -33,9 +33,15 @@ export function Panel() {
         <div className="min-w-0">
           <h2 className="font-display text-lg font-semibold sm:text-xl">{TITLE[view]}</h2>
           <p className="mt-1 text-sm text-ink/70">Chaque zone, chaque jour : l’eau viendra-t-elle, et quand ?</p>
-          <button onClick={() => setSourcesOpen(true)} className="mt-2 text-xs font-semibold text-blue md:hidden">D’où viennent les données ?</button>
+          <div className="mt-2 flex flex-wrap items-center gap-3 md:hidden">
+            <IncidentButton />
+            <button onClick={() => setSourcesOpen(true)} className="text-xs font-semibold text-blue">D’où viennent les données ?</button>
+          </div>
         </div>
-        <button onClick={() => setSourcesOpen(true)} className="pill pill-light md-only hidden md:inline-flex">ⓘ D’où viennent les données ?</button>
+        <div className="hidden items-center gap-2 md:flex">
+          <IncidentButton />
+          <button onClick={() => setSourcesOpen(true)} className="pill pill-light md-only inline-flex">ⓘ D’où viennent les données ?</button>
+        </div>
         <div className="grid w-full grid-cols-4 gap-1 rounded-2xl border border-ink/10 bg-ink/5 p-1 md:hidden">
           {VIEWS.map((v) => (
             <button key={v.id} onClick={() => setView(v.id)} className={`rounded-xl px-1 py-2 text-[11px] font-semibold leading-tight ${v.id === view ? 'bg-ink text-white' : 'text-ink/80'}`}>{v.label}</button>
@@ -43,7 +49,7 @@ export function Panel() {
         </div>
       </div>
 
-      <div className="mb-5"><EventBar showPlan={view !== 'operateur'} /></div>
+      <IncidentDrawer />
 
       <AnimatePresence mode="wait">
         <motion.div key={view} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.28 }}>

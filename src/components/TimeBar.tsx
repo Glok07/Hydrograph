@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
+import { CALAVI } from '../data/network'
 import { DAY_START, SLOT_COUNT, SLOT_H } from '../engine/conditions'
+import { totalHour } from '../engine/demand'
 import { servedAt } from '../engine/forecast'
 import { useDerived } from '../store/useDerived'
 import { useHydro } from '../store/useHydro'
@@ -8,13 +10,14 @@ const FIRST = DAY_START
 const LAST = DAY_START + SLOT_COUNT * SLOT_H - 1
 const STEP_MS = 650
 
-/** Timelapse de la journée : quelles zones ont l'eau, heure par heure. */
+/** Timelapse de la journée : quelles zones ont l'eau (ou consomment le plus), heure par heure. */
 export function TimeBar() {
   const hour = useHydro((s) => s.hour)
   const playing = useHydro((s) => s.playing)
   const setHour = useHydro((s) => s.setHour)
   const setPlaying = useHydro((s) => s.setPlaying)
-  const { shown } = useDerived()
+  const mode = useHydro((s) => s.mapMode)
+  const { shown, ctx } = useDerived()
 
   useEffect(() => {
     if (!playing) return
@@ -38,6 +41,15 @@ export function TimeBar() {
   }
 
   const wet = hour === null ? null : shown.filter((f) => servedAt(f, hour)).length
+  const cityDemand = hour === null ? null : CALAVI.zones.reduce((sum, z) => sum + totalHour(z, hour, ctx), 0)
+  const caption =
+    mode === 'demand'
+      ? cityDemand === null
+        ? 'Lancez la journée pour voir la demande monter et descendre'
+        : `${Math.round(cityDemand).toLocaleString('fr-FR')} m³ demandés à cette heure-là`
+      : wet === null
+        ? 'Lancez la journée pour voir l’eau circuler'
+        : `${wet} zone${wet > 1 ? 's' : ''} sur ${shown.length} ont l’eau`
   const pct = hour === null ? 0 : ((hour - FIRST) / (LAST - FIRST)) * 100
 
   return (
@@ -54,7 +66,7 @@ export function TimeBar() {
           <p className="min-w-0 font-display text-sm font-semibold">
             {hour === null ? 'Toute la journée' : `${hour} h`}
             <span className="mt-0.5 block font-sans text-[11px] font-normal leading-snug text-ink/60 sm:ml-2 sm:mt-0 sm:inline sm:text-xs">
-              {wet === null ? 'Lancez la journée pour voir l’eau circuler' : `${wet} zone${wet > 1 ? 's' : ''} sur ${shown.length} ont l’eau`}
+              {caption}
             </span>
           </p>
           {hour !== null && (

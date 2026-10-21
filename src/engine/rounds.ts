@@ -1,9 +1,11 @@
 import type { Network, Zone, ZoneId } from '../data/network'
 import { SLOT_H, SLOT_STARTS, conditionsFor, demandAt, isPeak } from './conditions.js'
 import type { HydroEvent } from './events'
-import { toForecast } from './forecast.js'
+import { finalize, toForecast } from './forecast.js'
 import type { Slot, ZoneForecast } from './forecast'
 import { isReachable } from './graph.js'
+import { REFERENCE_PERIOD } from './periods.js'
+import type { PeriodContext } from './periods'
 
 /**
  * Score de priorité d'un créneau : le moins servi passe d'abord (équité),
@@ -20,8 +22,8 @@ const PREFERRED_GUARANTEE_HOUR = 16
  * encore reliée, puis chaque créneau va aux zones dans l'ordre que donne scoreOf (score le
  * plus haut servi en premier). planRounds et priorityRounds ne diffèrent que par ce score.
  */
-function rounds(net: Network, event: HydroEvent | null, scoreOf: (z: Zone, served: number) => number): ZoneForecast[] {
-  const cond = conditionsFor(net, event)
+function rounds(net: Network, event: HydroEvent | HydroEvent[] | null, ctx: PeriodContext, scoreOf: (z: Zone, served: number) => number): ZoneForecast[] {
+  const cond = conditionsFor(net, event, ctx)
   const connected = net.zones.filter((z) => isReachable(net, z.id, cond.broken))
   const slots = new Map<ZoneId, Slot[]>(net.zones.map((z) => [z.id, []]))
   const left = [...cond.capacity]
@@ -29,7 +31,7 @@ function rounds(net: Network, event: HydroEvent | null, scoreOf: (z: Zone, serve
   const farthest = [...connected].sort((a, b) => b.depth - a.depth)[0]
   if (farthest) {
     const candidates = SLOT_STARTS.map((start, i) => ({ start, i }))
-      .filter(({ start, i }) => !isPeak(start) && left[i] >= demandAt(farthest, start))
+      .filter(({ start, i }) => !isPeak(start) && left[i] >= demandAt(farthest, start, cond))
       .sort(
         (a, b) =>
           left[b.i] - left[a.i] ||
@@ -37,7 +39,7 @@ function rounds(net: Network, event: HydroEvent | null, scoreOf: (z: Zone, serve
       )
     const best = candidates[0]
     if (best) {
-      left[best.i] -= demandAt(farthest, best.start)
+      left[best.i] -= demandAt(farthest, best.start, cond)
       slots.get(farthest.id)!.push({ start: best.start, end: best.start + SLOT_H, guaranteed: true })
     }
   }
@@ -49,7 +51,7 @@ function rounds(net: Network, event: HydroEvent | null, scoreOf: (z: Zone, serve
       .sort((a, b) => b.score - a.score)
 
     for (const { z } of order) {
-      const need = demandAt(z, start)
+      const need = demandAt(z, start, cond)
       if (need <= left[i]) {
         left[i] -= need
         slots.get(z.id)!.push({ start, end: start + SLOT_H })
@@ -57,18 +59,19 @@ function rounds(net: Network, event: HydroEvent | null, scoreOf: (z: Zone, serve
     }
   })
 
-  return net.zones.map((z) => {
-    const s = slots.get(z.id)!.sort((a, b) => a.start - b.start)
-    return toForecast(z.id, s, cond.qualityRisk.has(z.id))
-  })
+  return finalize(
+    net,
+    cond,
+    net.zones.map((z) => toForecast(z.id, slots.get(z.id)!.sort((a, b) => a.start - b.start), false)),
+  )
 }
 
 /**
  * Tours d'eau HydroGraph : chaque créneau va d'abord aux zones les moins
  * servies jusque-là, la distance au château d'eau départageant les ex æquo.
  */
-export function planRounds(net: Network, event: HydroEvent | null): ZoneForecast[] {
-  return rounds(net, event, (z, served) => -W_SERVED * served + W_DEPTH * z.depth)
+export function planRounds(net: Network, event: HydroEvent | HydroEvent[] | null, ctx: PeriodContext = REFERENCE_PERIOD): ZoneForecast[] {
+  return rounds(net, event, ctx, (z, served) => -W_SERVED * served + W_DEPTH * z.depth)
 }
 
 /**
@@ -83,8 +86,8 @@ export function planRounds(net: Network, event: HydroEvent | null): ZoneForecast
  * priority: [], le résultat est donc au moins aussi équitable que planRounds, sans lui être
  * forcément identique créneau par créneau.
  */
-export function priorityRounds(net: Network, event: HydroEvent | null, priority: ZoneId[]): ZoneForecast[] {
+export function priorityRounds(net: Network, event: HydroEvent | HydroEvent[] | null, priority: ZoneId[], ctx: PeriodContext = REFERENCE_PERIOD): ZoneForecast[] {
   const rank = new Map(priority.map((id, i) => [id, i]))
   const last = net.zones.length
-  return rounds(net, event, (z, served) => -1000 * served - (rank.get(z.id) ?? last) + 0.01 * z.depth)
+  return rounds(net, event, ctx, (z, served) => -1000 * served - (rank.get(z.id) ?? last) + 0.01 * z.depth)
 }

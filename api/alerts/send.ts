@@ -8,6 +8,7 @@ import { DEFAULT_EVENTS } from '../../src/engine/events.js'
 import type { EventType } from '../../src/engine/events.js'
 import { forecast } from '../../src/engine/forecast.js'
 import { messageFor } from '../../src/engine/notify.js'
+import { periodById } from '../../src/engine/periods.js'
 import { planRounds } from '../../src/engine/rounds.js'
 
 /**
@@ -15,13 +16,17 @@ import { planRounds } from '../../src/engine/rounds.js'
  * Par défaut seuls les testeurs réels reçoivent un message ; ALERTS_LIVE=true ouvre à tous les abonnés vérifiés.
  */
 export async function POST(request: Request) {
-  const b = await readJson<{ event?: EventType | null; plan?: boolean; zone?: ZoneId }>(request)
+  const b = await readJson<{ event?: EventType | null; events?: EventType[]; period?: string; plan?: boolean; zone?: ZoneId }>(request)
   if (!b) return json({ error: 'JSON invalide' }, 400)
 
-  const ev = b.event ? DEFAULT_EVENTS[b.event] : null
-  if (b.event && !ev) return json({ error: 'Événement inconnu' }, 400)
+  // `events` : causes cumulées ; `event` : forme d'origine, une seule cause. La première cause sert de cause principale aux messages.
+  const types = b.events ?? (b.event ? [b.event] : [])
+  const evs = types.map((t) => DEFAULT_EVENTS[t])
+  if (evs.some((e) => !e)) return json({ error: 'Événement inconnu' }, 400)
+  const ev = evs[0] ?? null
+  const ctx = periodById(b.period ?? 'ordinaire')
   const plan = Boolean(b.plan)
-  const forecasts = plan ? planRounds(CALAVI, ev) : forecast(CALAVI, ev)
+  const forecasts = plan ? planRounds(CALAVI, evs, ctx) : forecast(CALAVI, evs, ctx)
   const live = process.env.ALERTS_LIVE === 'true'
 
   const event = ev ? await prisma.networkEvent.create({ data: { type: ev.type, startsAt: ev.startsAt, durationH: ev.durationH, pipe: ev.pipe } }) : null

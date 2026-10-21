@@ -1,21 +1,20 @@
 import type { Network, PipeId, Zone, ZoneId } from '../data/network'
+import { buildScenario } from './causes.js'
+import type { Scenario } from './causes'
+import { demandIndex } from './demand.js'
+import { toEvents } from './events.js'
 import type { HydroEvent } from './events'
-import { downstream } from './graph.js'
+import { qualityRiskZones } from './impact.js'
+import { REFERENCE_PERIOD } from './periods.js'
+import type { PeriodContext } from './periods'
+import { SLOT_H, overlaps } from './slots.js'
 
-/** Journée de service : 9 créneaux de 2 h, de 5 h à 23 h. */
-export const DAY_START = 5
-export const SLOT_H = 2
-export const SLOT_COUNT = 9
-export const SLOT_STARTS = Array.from({ length: SLOT_COUNT }, (_, i) => DAY_START + i * SLOT_H)
+export { DAY_START, SLOT_COUNT, SLOT_H, SLOT_STARTS } from './slots.js'
 
-/** Heures de pointe : 6 h-8 h et 18 h-20 h. */
+/** Heures de pointe des ménages : 6 h-8 h et 18 h-20 h (la demande réelle, elle, vient de demand.ts). */
 const PEAKS: [number, number][] = [[6, 8], [18, 20]]
-const PEAK_FACTOR = 1.5
-const POWER_CUT_FACTOR = 0.25
 /** Pression perdue en bout de réseau : la demande effective grimpe avec la distance. */
 const PRESSURE_PENALTY = 0.1
-
-const overlaps = (a0: number, a1: number, b0: number, b1: number) => a0 < b1 && b0 < a1
 
 export const isPeak = (start: number) => PEAKS.some(([a, b]) => overlaps(start, start + SLOT_H, a, b))
 
@@ -24,32 +23,25 @@ export interface Conditions {
   capacity: number[]
   /** conduites hors service */
   broken: Set<PipeId>
-  /** zones dont l'eau est à risque sanitaire */
+  /** zones dont l'eau est à risque sanitaire, indépendamment du rationnement */
   qualityRisk: Set<ZoneId>
+  /** contexte de la journée une fois les causes de situation appliquées (marché, fête, chaleur…) */
+  ctx: PeriodContext
+  scenario: Scenario
 }
 
-export function conditionsFor(net: Network, event: HydroEvent | null): Conditions {
-  const broken = new Set<PipeId>()
-  const qualityRisk = new Set<ZoneId>()
-  const capacity = SLOT_STARTS.map((start) => {
-    if (event?.type === 'power_cut' && overlaps(start, start + SLOT_H, event.startsAt, event.startsAt + event.durationH)) {
-      return net.tower.capacity * POWER_CUT_FACTOR
-    }
-    return net.tower.capacity
-  })
-
-  if (event?.type === 'pipe_burst' && event.pipe) {
-    broken.add(event.pipe)
-    const cut = net.pipes.find((p) => p.id === event.pipe)
-    if (cut) for (const z of [cut.to, ...downstream(net, cut.to)]) qualityRisk.add(z)
-  }
-  if (event?.type === 'heavy_rain') {
-    for (const z of net.zones) if (z.wells) qualityRisk.add(z.id)
-  }
-  return { capacity, broken, qualityRisk }
+/** Un événement seul (comme avant), une liste de causes cumulées, ou rien. */
+export function conditionsFor(net: Network, event: HydroEvent | HydroEvent[] | null, ctx: PeriodContext = REFERENCE_PERIOD): Conditions {
+  const scenario = buildScenario(net, toEvents(event), ctx)
+  return { capacity: scenario.capacity, broken: scenario.broken, qualityRisk: qualityRiskZones(net, scenario), ctx: scenario.ctx, scenario }
 }
 
-export function demandAt(zone: Zone, slotStart: number): number {
-  const peak = isPeak(slotStart) ? PEAK_FACTOR : 1
-  return zone.demand * peak * (1 + PRESSURE_PENALTY * zone.depth)
+/**
+ * Demande de la zone au réseau pendant un créneau. `zone.demand` est le niveau de référence
+ * (creux de journée) ; le modèle d'activités (demand.ts) donne la forme selon l'heure et la période.
+ */
+export function demandAt(zone: Zone, slotStart: number, cond?: Conditions): number {
+  const ctx = cond?.ctx ?? REFERENCE_PERIOD
+  const loss = cond?.scenario.pressureLoss ?? 0
+  return zone.demand * demandIndex(zone, slotStart, SLOT_H, ctx) * (1 + (PRESSURE_PENALTY + loss) * zone.depth)
 }

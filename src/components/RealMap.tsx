@@ -31,15 +31,32 @@ const DASH = [
 type RGB = [number, number, number]
 /** Couleur d'une zone à sec pendant le timelapse. */
 const DRY: RGB = [184, 198, 214]
+/** Échelle de la demande prévue : bleu pâle (peu) à bleu profond (beaucoup). */
+const DEMAND_LOW: RGB = [190, 216, 248]
+const DEMAND_HIGH: RGB = [16, 78, 180]
+const mix = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
+
+/** Ce que la carte montre pour une zone en mode « demande » : intensité 0 à 1 (couleur, hauteur) et libellé. */
+export interface DemandView {
+  intensity: number
+  label: string
+}
 const hexToRgb = (h: string): RGB => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
 const css = ([r, g, b]: RGB) => `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`
+
+/** Valeur par défaut stable : un tableau recréé à chaque rendu relancerait l'effet des causes. */
+const NO_CAUSES: EventType[] = []
 
 interface Props {
   zones: ZoneForecast[]
   broken: ReadonlySet<PipeId>
   selected?: ZoneId
   onSelect?: (zone: ZoneId) => void
-  event?: EventType | null
+  /** toutes les causes simulées : la carte réagit à chacune (courant coupé, pluie, rupture) */
+  causes?: EventType[]
+  /** « service » : disponibilité de l'eau ; « demand » : demande prévue d'après les activités */
+  mode?: 'service' | 'demand'
+  demand?: Partial<Record<ZoneId, DemandView>>
   /** largeurs réservées à des panneaux flottants (grand écran) */
   padRight?: number
   padLeft?: number
@@ -96,7 +113,7 @@ function recolor(map: MLMap) {
   }
 }
 
-export function RealMap({ zones, broken, selected, onSelect, event = null, padRight = 0, padLeft = 0, zoomBoost = 0.2, activeHour = null, focusKey = 0, overviewKey = 0, unit = 'h' }: Props) {
+export function RealMap({ zones, broken, selected, onSelect, causes = NO_CAUSES, mode = 'service', demand, padRight = 0, padLeft = 0, zoomBoost = 0.2, activeHour = null, focusKey = 0, overviewKey = 0, unit = 'h' }: Props) {
   const box = useRef<HTMLDivElement>(null)
   const wrap = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MLMap | null>(null)
@@ -111,6 +128,7 @@ export function RealMap({ zones, broken, selected, onSelect, event = null, padRi
   const rightRef = useRef(right)
   const leftRef = useRef(wide ? padLeft : 0)
   const boostRef = useRef(zoomBoost)
+  const prevCauses = useRef<EventType[]>([])
 
   useEffect(() => {
     onSelectRef.current = onSelect
@@ -220,8 +238,15 @@ export function RealMap({ zones, broken, selected, onSelect, event = null, padRi
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
+    const showDemand = mode === 'demand' && demand !== undefined
     const target = new Map(
-      zones.map((f) => [f.zone, servedAt(f, activeHour) ? { c: hexToRgb(STATUS_COLOR[f.status]), h: BASE_H + f.hoursOfWater * M_PER_HOUR } : { c: DRY, h: 12 }]),
+      zones.map((f) => {
+        if (showDemand) {
+          const d = demand[f.zone]?.intensity ?? 0
+          return [f.zone, { c: mix(DEMAND_LOW, DEMAND_HIGH, d), h: BASE_H + 30 + d * 620 }]
+        }
+        return [f.zone, servedAt(f, activeHour) ? { c: hexToRgb(STATUS_COLOR[f.status]), h: BASE_H + f.hoursOfWater * M_PER_HOUR } : { c: DRY, h: 12 }]
+      }),
     )
     const from = new Map(CALAVI.zones.map((z) => [z.id, cur.current.get(z.id) ?? { c: target.get(z.id)!.c, h: 0 }]))
     const t0 = performance.now()
@@ -252,16 +277,17 @@ export function RealMap({ zones, broken, selected, onSelect, event = null, padRi
       const name = CALAVI.zones.find((z) => z.id === f.zone)!.name
       // classList et non className : MapLibre pose ses propres classes de positionnement sur l'élément.
       el.classList.remove('ok', 'warn', 'risk')
-      el.classList.add(f.status)
+      if (!showDemand) el.classList.add(f.status)
       el.classList.toggle('selected', f.zone === selected)
       el.classList.toggle('clickable', !!onSelect)
-      const wet = servedAt(f, activeHour)
+      const wet = showDemand || servedAt(f, activeHour)
       el.classList.toggle('dry', !wet)
-      const label = activeHour === null ? `${f.hoursOfWater} ${unit}` : wet ? 'l’eau coule' : 'à sec'
-      el.innerHTML = `<span class="dot" style="background:${wet ? STATUS_COLOR[f.status] : css(DRY)}"></span><span class="name">${name}</span><span class="hours">${label}</span>`
+      const label = showDemand ? (demand[f.zone]?.label ?? '') : activeHour === null ? `${f.hoursOfWater} ${unit}` : wet ? 'l’eau coule' : 'à sec'
+      const dot = showDemand ? css(mix(DEMAND_LOW, DEMAND_HIGH, demand[f.zone]?.intensity ?? 0)) : wet ? STATUS_COLOR[f.status] : css(DRY)
+      el.innerHTML = `<span class="dot" style="background:${dot}"></span><span class="name">${name}</span><span class="hours">${label}</span>`
     }
     return () => cancelAnimationFrame(raf)
-  }, [zones, selected, ready, unit, onSelect, activeHour])
+  }, [zones, selected, ready, unit, onSelect, activeHour, mode, demand])
 
   // Conduites : eau qui circule, conduite sèche ou cassée.
   useEffect(() => {
@@ -296,31 +322,34 @@ export function RealMap({ zones, broken, selected, onSelect, event = null, padRi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overviewKey, ready])
 
-  // Effets visuels des événements.
+  // Effets visuels des causes : le château d'eau, la rupture, la pluie ; la caméra suit la cause qu'on vient d'ajouter.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return
-    towerEl.current?.classList.toggle('off', event === 'power_cut')
+    const added = causes.filter((c) => !prevCauses.current.includes(c))
+    prevCauses.current = causes
+    towerEl.current?.classList.toggle('off', causes.includes('power_cut'))
     const cleanups: (() => void)[] = []
-    if (event === 'power_cut') {
+    const burstPipe = causes.includes('pipe_burst') ? [...broken][0] : undefined
+    if (burstPipe) {
+      const el = document.createElement('div')
+      el.className = 'burst'
+      const marker = new Marker({ element: el }).setLngLat(pipeMidpoint(burstPipe)).addTo(map)
+      cleanups.push(() => marker.remove())
+    }
+    if (added.includes('power_cut')) {
       wrap.current?.classList.add('flicker')
       const t = window.setTimeout(() => wrap.current?.classList.remove('flicker'), 1600)
       cleanups.push(() => window.clearTimeout(t))
       map.flyTo({ center: towerPos(), zoom: 12, pitch: 55, duration: 1400, padding: { top: 0, bottom: 0, left: 0, right: rightRef.current } })
+    } else if (added.includes('pipe_burst') && burstPipe) {
+      map.flyTo({ center: pipeMidpoint(burstPipe), zoom: 12.2, pitch: 58, duration: 1600, padding: { top: 0, bottom: 0, left: 0, right: rightRef.current } })
+    } else if (added.includes('heavy_rain') || added.includes('flood')) {
+      overview(1600)
     }
-    if (event === 'pipe_burst') {
-      const [pipe] = [...broken]
-      if (pipe) {
-        const el = document.createElement('div')
-        el.className = 'burst'
-        const marker = new Marker({ element: el }).setLngLat(pipeMidpoint(pipe)).addTo(map)
-        cleanups.push(() => marker.remove())
-        map.flyTo({ center: pipeMidpoint(pipe), zoom: 12.2, pitch: 58, duration: 1600, padding: { top: 0, bottom: 0, left: 0, right: rightRef.current } })
-      }
-    }
-    if (event === 'heavy_rain') overview(1600)
     return () => cleanups.forEach((c) => c())
-  }, [event, broken, ready])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [causes, broken, ready])
 
   if (failed) {
     return (
@@ -336,7 +365,7 @@ export function RealMap({ zones, broken, selected, onSelect, event = null, padRi
   return (
     <div ref={wrap} className="relative h-full w-full">
       <div ref={box} style={{ position: "absolute", inset: 0 }} />
-      {event === 'heavy_rain' && <div className="rain" aria-hidden />}
+      {(causes.includes('heavy_rain') || causes.includes('flood')) && <div className="rain" aria-hidden />}
       {!ready && (
         <div className="absolute inset-0 flex items-center justify-center">
           <span className="pill pill-light">Chargement de la carte d’Abomey-Calavi…</span>
