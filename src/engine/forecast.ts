@@ -1,7 +1,7 @@
 import type { Network, ZoneId } from '../data/network'
-import { SLOT_H, SLOT_STARTS, conditionsFor, demandAt } from './conditions'
+import { SLOT_H, SLOT_STARTS, conditionsFor, demandAt } from './conditions.js'
 import type { HydroEvent } from './events'
-import { isReachable } from './graph'
+import { isReachable } from './graph.js'
 
 export type Status = 'ok' | 'warn' | 'risk'
 

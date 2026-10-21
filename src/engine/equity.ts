@@ -1,4 +1,4 @@
-import { HISTORY } from '../data/history'
+import { HISTORY } from '../data/history.js'
 import type { Zone, ZoneId } from '../data/network'
 import type { ZoneForecast } from './forecast'
 

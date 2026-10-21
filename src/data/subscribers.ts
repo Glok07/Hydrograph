@@ -19,7 +19,7 @@ export interface Subscriber {
 
 /** Testeurs réels de la démo : les seuls numéros qui reçoivent de vrais messages. */
 const TESTERS: Subscriber[] = [
-  { id: 'S001', name: 'Osias', phone: '0146910055', zone: 'Z6', lang: 'fr', channel: 'whatsapp', members: 5, joined: '2026-09-02', real: true },
+  { id: 'S001', name: 'Alan', phone: '0146000922', zone: 'Z6', lang: 'fr', channel: 'whatsapp', members: 5, joined: '2026-09-02', real: true },
   { id: 'S002', name: 'Happy', phone: '0158111896', zone: 'Z4', lang: 'fr', channel: 'whatsapp', members: 4, joined: '2026-09-02', real: true },
 ]
 

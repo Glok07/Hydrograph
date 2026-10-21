@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
 import { CALAVI } from '../data/network'
 import { SUBSCRIBERS, subscribersOf } from '../data/subscribers'
-import { messageFor, sendWhatsApp } from '../engine/notify'
+import { messageFor, sendAlerts } from '../engine/notify'
 import { LANGS, buildMessage } from '../engine/messages'
 import type { Lang } from '../engine/messages'
 import { useDerived } from '../store/useDerived'
@@ -37,15 +37,9 @@ export function FamilyView() {
       return
     }
     setBusy(true)
-    const results = await Promise.all(
-      SUBSCRIBERS.filter((s) => s.real).map(async (s) => {
-        const z = CALAVI.zones.find((x) => x.id === s.zone)!
-        const out = messageFor(s, event, z, shown.find((f) => f.zone === s.zone)!, plan)
-        return { name: s.name, res: await sendWhatsApp(out.to, out.text) }
-      }),
-    )
+    const out = await sendAlerts(event, plan)
     setBusy(false)
-    setReport(results.map((r) => `${r.name} : ${r.res.ok ? (r.res.dryRun ? 'dry-run (aucun jeton configuré)' : 'envoyé ✓') : r.res.error}`).join(' · '))
+    setReport('error' in out ? out.error : `${out.count} message(s) : ${out.results.map((r) => `${r.name} ${r.status}${r.error ? ` (${r.error})` : ''}`).join(' · ')}`)
   }
 
   const speak = () => {

@@ -1,4 +1,4 @@
-import { CALAVI } from './network'
+import { CALAVI } from './network.js'
 import type { PipeId, ZoneId } from './network'
 
 export type LngLat = [number, number]

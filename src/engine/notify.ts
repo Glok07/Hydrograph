@@ -2,9 +2,9 @@ import type { Subscriber } from '../data/subscribers'
 import type { Zone } from '../data/network'
 import type { EventType } from './events'
 import type { ZoneForecast } from './forecast'
-import { buildMessage } from './messages'
+import { buildMessage } from './messages.js'
 
-/** 0146910055 -> 2290146910055 (format international attendu par WhatsApp, sans « + »). */
+/** 0146000922 -> 2290146000922 (format international attendu par WhatsApp, sans « + »). */
 export function toE164(phone: string): string {
   const digits = phone.replace(/\D/g, '')
   return digits.startsWith('229') ? digits : `229${digits}`
@@ -23,20 +23,23 @@ export function messageFor(sub: Subscriber, event: EventType | null, zone: Zone,
   return { subscriber: sub, to: toE164(sub.phone), text: `💧 Bonjour ${first}. ${msg.title} : ${msg.body}` }
 }
 
-export type SendResult = { ok: true; dryRun: boolean } | { ok: false; error: string }
+export interface AlertReport {
+  live: boolean
+  count: number
+  results: { name: string; status: string; error?: string }[]
+}
 
-/** Appelle le petit serveur local (server/whatsapp.mjs) : le jeton WhatsApp ne quitte jamais le serveur. */
-export async function sendWhatsApp(to: string, text: string): Promise<SendResult> {
+/** Demande au serveur de diffuser l'alerte courante : le jeton WhatsApp ne quitte jamais le serveur. */
+export async function sendAlerts(event: EventType | null, plan: boolean): Promise<AlertReport | { error: string }> {
   try {
-    const res = await fetch('/api/whatsapp/send', {
+    const res = await fetch('/api/alerts/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, text }),
+      body: JSON.stringify({ event, plan }),
     })
     const body = await res.json().catch(() => ({}))
-    if (!res.ok) return { ok: false, error: body.error ?? `HTTP ${res.status}` }
-    return { ok: true, dryRun: Boolean(body.dryRun) }
+    return res.ok ? body : { error: body.error ?? `HTTP ${res.status}` }
   } catch {
-    return { ok: false, error: 'Serveur WhatsApp injoignable (npm run api).' }
+    return { error: 'Serveur injoignable (en local, lancez npm run api).' }
   }
 }
