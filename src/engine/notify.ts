@@ -4,10 +4,29 @@ import type { EventType } from './events'
 import type { ZoneForecast } from './forecast'
 import { buildMessage } from './messages.js'
 
-/** 0146000922 -> 2290146000922 (format international attendu par WhatsApp, sans « + »). */
+/**
+ * Forme canonique stockée en base : 0146000922 -> 2290146000922.
+ * C'est le numéro béninois officiel depuis la réforme de novembre 2024 (préfixe « 01 »).
+ */
 export function toE164(phone: string): string {
   const digits = phone.replace(/\D/g, '')
   return digits.startsWith('229') ? digits : `229${digits}`
+}
+
+/**
+ * Adresse WhatsApp : 2290146000922 -> 22946000922.
+ * Les comptes WhatsApp béninois restent enregistrés sous l'ancien numéro à 8 chiffres,
+ * antérieur au préfixe « 01 » ; Meta ne reconnaît pas la forme à 10 chiffres.
+ */
+export function toWhatsApp(phone: string): string {
+  const national = toE164(phone).slice(3)
+  return `229${national.length === 10 && national.startsWith('01') ? national.slice(2) : national}`
+}
+
+/** Inverse de toWhatsApp : rétablit la forme canonique d'un numéro reçu de Meta. */
+export function fromWhatsApp(phone: string): string {
+  const national = phone.replace(/\D/g, '').replace(/^229/, '')
+  return `229${national.length === 8 ? `01${national}` : national}`
 }
 
 export interface Outgoing {

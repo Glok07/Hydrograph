@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { prisma } from '../../server/db.js'
 import { sendText } from '../../server/whatsapp.js'
+import { fromWhatsApp } from '../../src/engine/notify.js'
 
 interface Payload {
   entry?: {
@@ -47,13 +48,15 @@ export async function POST(request: Request) {
       if (status) await prisma.notification.updateMany({ where: { providerId: st.id }, data: { status, ...(status === 'failed' ? { error: st.errors?.[0]?.title ?? 'échec' } : {}) } })
     }
     for (const m of change.value?.messages ?? []) {
+      // Meta adresse les comptes béninois en 8 chiffres ; la base les stocke en forme canonique.
+      const phone = fromWhatsApp(m.from)
       const word = m.text?.body.trim().toUpperCase()
       if (word === 'STOP') {
-        const r = await prisma.subscriber.updateMany({ where: { phone: m.from }, data: { unsubscribedAt: new Date() } })
-        if (r.count) await sendText(m.from, '💧 HydroGraph : vous êtes désabonné. Répondez START pour réactiver les alertes.')
+        const r = await prisma.subscriber.updateMany({ where: { phone }, data: { unsubscribedAt: new Date() } })
+        if (r.count) await sendText(phone, '💧 HydroGraph : vous êtes désabonné. Répondez START pour réactiver les alertes.')
       } else if (word === 'START') {
-        const r = await prisma.subscriber.updateMany({ where: { phone: m.from, verifiedAt: { not: null } }, data: { unsubscribedAt: null } })
-        if (r.count) await sendText(m.from, '💧 HydroGraph : alertes réactivées.')
+        const r = await prisma.subscriber.updateMany({ where: { phone, verifiedAt: { not: null } }, data: { unsubscribedAt: null } })
+        if (r.count) await sendText(phone, '💧 HydroGraph : alertes réactivées.')
       }
     }
   }
