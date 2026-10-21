@@ -21,12 +21,32 @@ body,
   min-height: 100%;
 }
 
+html,
+body {
+  overflow-x: clip;
+}
+
+body {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
 body {
   margin: 0;
   background: #f6f9fd;
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Barre de défilement invisible : la page défile toujours, mais sans rail visible. */
+html {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* vieux Edge */
+}
+html::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .page {
@@ -37,6 +57,14 @@ body {
 .frame {
   container-type: inline-size;
   background: linear-gradient(180deg, #f6f9fd 0, #edf3fa 100%);
+}
+
+/* Hauteur de l'accueil, lue par l'eau, les bulles et le panneau. */
+.hero-stage {
+  --hero-h: clamp(420px, 52cqw, 700px);
+}
+.panel-overlap {
+  margin-top: calc(var(--hero-h) * -0.14);
 }
 
 .water-fallback {
@@ -235,6 +263,19 @@ body {
 .tower-marker.off::after {
   border-color: var(--color-risk);
 }
+.tower-label {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--color-ink);
+  font: 600 10px/1 var(--font-sans);
+  box-shadow: 0 4px 12px rgba(20, 60, 120, 0.2);
+}
 @keyframes blink {
   50% {
     opacity: 0.35;
@@ -389,6 +430,47 @@ body {
 .maplibregl-ctrl-attrib {
   font-size: 10px;
   opacity: 0.7;
+}
+
+@media (max-width: 767px) {
+  /* .pill fixe display et gagnerait sinon sur le utilitaire hidden. */
+  .md-only {
+    display: none !important;
+  }
+  .hero-stage {
+    --hero-h: clamp(320px, 108vw, 430px);
+  }
+  .panel-overlap {
+    margin-top: -0.75rem;
+  }
+  .zone-chip {
+    gap: 4px;
+    padding: 3px 7px 3px 5px;
+    font-size: 10px;
+  }
+  .zone-chip .name {
+    max-width: 5.2rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .maplibregl-ctrl-bottom-right,
+  .maplibregl-ctrl-bottom-left {
+    max-width: 46%;
+  }
+}
+
+@media (pointer: coarse) {
+  .hour-range {
+    height: 10px;
+  }
+  .hour-range::-webkit-slider-thumb {
+    width: 28px;
+    height: 28px;
+  }
+  .hour-range::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

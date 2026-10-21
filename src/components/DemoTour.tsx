@@ -58,7 +58,7 @@ export function DemoTour() {
   return (
     <AnimatePresence>
       {tour !== null && (
-        <motion.div className="fixed inset-x-0 bottom-4 z-[60] flex justify-center px-4 sm:justify-end sm:px-6" initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
+        <motion.div className="fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[60] flex justify-center px-3 sm:justify-end sm:px-6" initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
           <div className="card w-full max-w-md p-4 shadow-[0_20px_60px_rgba(20,60,120,0.25)]">
             <div className="flex items-center justify-between gap-3">
               <div className="flex gap-1.5" aria-hidden>

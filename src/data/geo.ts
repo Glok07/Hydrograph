@@ -7,7 +7,14 @@ export type LngLat = [number, number]
  * Centres des localités d'Abomey-Calavi d'après OpenStreetMap (Nominatim, octobre 2026).
  * Les contours des zones de desserte sont dessinés pour la démo : ce ne sont pas les limites officielles.
  */
-export const TOWER: LngLat = [2.3445, 6.4572]
+const FALLBACK_TOWER: LngLat = [2.3445, 6.4572]
+
+/**
+ * Position du château d'eau : calculée à chaque appel, jamais figée au chargement du module,
+ * pour refléter une modification faite depuis l'écran Opérateur (voir api/network) sans recharger
+ * tout le fichier. Repli sur la position d'origine tant que personne ne l'a déplacé.
+ */
+export const towerPos = (): LngLat => (CALAVI.tower.lng != null && CALAVI.tower.lat != null ? [CALAVI.tower.lng, CALAVI.tower.lat] : FALLBACK_TOWER)
 
 export const ZONE_GEO: Record<ZoneId, { center: LngLat; radiusKm: number; seed: number }> = {
   Z1: { center: [2.3542, 6.4539], radiusKm: 1.5, seed: 0.4 },
@@ -48,14 +55,14 @@ export function curve(a: LngLat, b: LngLat, bend = 0.18, n = 32): LngLat[] {
   })
 }
 
-const nodeOf = (id: ZoneId | 'TOWER'): LngLat => (id === 'TOWER' ? TOWER : ZONE_GEO[id].center)
+const nodeOf = (id: ZoneId | 'TOWER'): LngLat => (id === 'TOWER' ? towerPos() : ZONE_GEO[id].center)
 
-export const PIPE_GEO: Record<PipeId, LngLat[]> = Object.fromEntries(
-  CALAVI.pipes.map((p) => [p.id, curve(nodeOf(p.from), nodeOf(p.to))]),
-) as Record<PipeId, LngLat[]>
+/** Tracé des conduites : recalculé à chaque appel (voir towerPos), pas figé au chargement du module. */
+export const pipeGeo = (): Record<PipeId, LngLat[]> =>
+  Object.fromEntries(CALAVI.pipes.map((p) => [p.id, curve(nodeOf(p.from), nodeOf(p.to))])) as Record<PipeId, LngLat[]>
 
 export const pipeMidpoint = (id: PipeId): LngLat => {
-  const line = PIPE_GEO[id]
+  const line = pipeGeo()[id]
   return line[Math.floor(line.length / 2)]
 }
 
@@ -63,13 +70,13 @@ export const ZONE_SHAPES: Record<ZoneId, LngLat[]> = Object.fromEntries(
   CALAVI.zones.map((z) => [z.id, blob(ZONE_GEO[z.id].center, ZONE_GEO[z.id].radiusKm, ZONE_GEO[z.id].seed)]),
 ) as Record<ZoneId, LngLat[]>
 
-/** Emprise qui contient toutes les zones. */
-export const BOUNDS: [LngLat, LngLat] = (() => {
-  const all = Object.values(ZONE_SHAPES).flat()
+/** Emprise qui contient toutes les zones et le château d'eau (sa position peut avoir été déplacée). */
+export const bounds = (): [LngLat, LngLat] => {
+  const all = [...Object.values(ZONE_SHAPES).flat(), towerPos()]
   const lng = all.map((p) => p[0])
   const lat = all.map((p) => p[1])
   return [
     [Math.min(...lng), Math.min(...lat)],
     [Math.max(...lng), Math.max(...lat)],
   ]
-})()
+}

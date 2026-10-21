@@ -86,7 +86,7 @@ export function CarteView() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-12">
-      <div className="grid grid-cols-2 gap-4 lg:col-span-12 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:col-span-12 lg:grid-cols-4">
         <StatTile value={well} total={shown.length} label="zones bien servies" />
         <StatTile value={avg} unit="h" label="d’eau en moyenne par jour" />
         <StatTile value={risk} label={risk > 1 ? 'zones à risque de manque' : 'zone à risque de manque'} />
@@ -100,14 +100,14 @@ export function CarteView() {
         <span className="text-ink/50">Hauteur des zones = heures d’eau · positions réelles, chiffres simulés</span>
       </div>
 
-      <section className="relative h-[620px] overflow-hidden rounded-[22px] border border-ink/10 bg-mist shadow-[0_12px_40px_rgba(20,60,120,0.12)] lg:col-span-12">
+      <section className="relative h-[min(68svh,520px)] min-h-[340px] overflow-hidden rounded-[22px] border border-ink/10 bg-mist shadow-[0_12px_40px_rgba(20,60,120,0.12)] lg:col-span-12 lg:h-[620px]">
         <RealMap zones={shown} broken={broken} selected={zone} onSelect={setZone} event={event} activeHour={hour} focusKey={focusTick} overviewKey={overviewTick} padRight={CARD_W + 24} zoomBoost={0.65} />
 
         <aside className="glass absolute bottom-4 right-4 top-4 z-10 hidden overflow-y-auto !rounded-2xl p-5 lg:block" style={{ width: CARD_W }}>
           <ZoneCard />
         </aside>
 
-        <div className="absolute left-4 top-4 z-20 flex w-[min(22rem,calc(100%-2rem))] flex-col gap-2">
+        <div className="absolute left-3 right-3 top-14 z-20 flex flex-col gap-2 sm:left-4 sm:right-auto sm:top-4 sm:w-[min(22rem,calc(100%-2rem))]">
           <AnimatePresence>
             {toasts.map((t) => (
               <motion.div key={t.id} layout initial={{ opacity: 0, y: -20, scale: 0.96 }} animate={{ opacity: 1, x: 0, scale: 1 }} exit={{ opacity: 0, y: -12 }} transition={{ type: 'spring', stiffness: 320, damping: 28 }} className="glass !rounded-2xl px-4 py-3">
@@ -123,20 +123,22 @@ export function CarteView() {
 
         <AnimatePresence>
           {event && !plan && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="absolute bottom-[7.5rem] left-1/2 z-20 -translate-x-1/2 lg:left-[calc(50%-190px)]">
-              <button onClick={recompute} disabled={computing} className="cta-glow flex items-center gap-3 rounded-full bg-blue px-6 py-3 text-sm font-bold text-white shadow-xl">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="absolute inset-x-3 bottom-3 z-20 flex justify-center lg:inset-x-auto lg:bottom-[7.5rem] lg:left-[calc(50%-190px)] lg:-translate-x-1/2">
+              <button onClick={recompute} disabled={computing} className="cta-glow flex w-full max-w-md items-center justify-center gap-2 whitespace-normal rounded-full bg-blue px-4 py-3 text-center text-sm font-bold leading-snug text-white shadow-xl sm:w-auto sm:gap-3 sm:px-6">
                 {computing ? <><span className="spinner" /> HydroGraph recalcule les tours d’eau…</> : <>Recalculer les tours d’eau <span aria-hidden>→</span></>}
               </button>
             </motion.div>
           )}
         </AnimatePresence>
-        <div className="absolute bottom-4 left-4 right-4 z-20 lg:right-[calc(360px+2rem)]"><TimeBar /></div>
+        <div className="absolute bottom-4 left-4 right-4 z-20 hidden lg:right-[calc(360px+2rem)] lg:block"><TimeBar /></div>
         {computing && <div className="scan pointer-events-none absolute inset-0 z-10" aria-hidden />}
       </section>
 
-      <section className="glass p-5 lg:hidden"><ZoneCard /></section>
+      <div className="lg:hidden"><TimeBar /></div>
 
-      <section className="glass p-5 lg:col-span-7">
+      <section className="glass p-4 sm:p-5 lg:hidden"><ZoneCard /></section>
+
+      <section className="glass p-4 sm:p-5 lg:col-span-7">
         <h3 className="mb-3 font-display text-base font-semibold">Heures d’eau sur 7 jours</h3>
         <WeekChart lines={[
           { label: nameOf('Z1'), values: [...HISTORY.Z1, today('Z1')], color: LINE_COLORS.centre },
@@ -144,7 +146,7 @@ export function CarteView() {
         ]} />
       </section>
 
-      <section className="glass p-5 lg:col-span-5">
+      <section className="glass p-4 sm:p-5 lg:col-span-5">
         <h3 className="mb-3 font-display text-base font-semibold">Zones à surveiller</h3>
         <ul className="space-y-2">
           {watch.map((f, i) => (

@@ -75,6 +75,48 @@ model Notification {
   @@index([status])
 }
 
+model NetworkZone {
+  /// identifiant stable, ex. "Z1" (voir ZoneId dans src/data/network.ts)
+  id         String   @id
+  name       String
+  households Int
+  /// demande par créneau de 2 h, hors pointe
+  demand     Int
+  /// nombre de sauts de conduite depuis le château d'eau
+  depth      Int
+  /// zone alimentée en partie par des puits : sensible aux fortes pluies
+  wells      Boolean
+  updatedAt  DateTime @updatedAt
+}
+
+model NetworkPipe {
+  /// identifiant stable, ex. "P0" (voir PipeId dans src/data/network.ts)
+  id   String @id
+  /// "TOWER" ou l'id d'une zone
+  from String
+  to   String
+}
+
+model TowerConfig {
+  /// une seule ligne : le château d'eau simulé, le point principal de distribution
+  id       Int    @id @default(1)
+  name     String
+  capacity Int
+  /// position sur la carte ; absente tant que personne ne l'a placée depuis la plateforme
+  lng      Float?
+  lat      Float?
+}
+
+model HistoryPoint {
+  id    String   @id @default(cuid())
+  zone  String
+  date  DateTime @db.Date
+  hours Float
+
+  @@unique([zone, date])
+  @@index([zone])
+}
+
 model VerificationCode {
   id        String   @id @default(cuid())
   phone     String

@@ -25,12 +25,12 @@ export function ZoneCard() {
     <AnimatePresence mode="wait">
       <motion.div key={`${zoneId}-${event}-${plan}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3 }} className="flex h-full flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <p className="text-xs uppercase tracking-[0.16em] text-ink/55">Fiche de zone</p>
             <h3 className="font-display text-xl font-semibold">{zone.name}</h3>
             <p className="text-xs text-ink/55">{zone.households.toLocaleString('fr-FR')} foyers (simulé)</p>
           </div>
-          <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold text-ink" style={{ background: `${color}22` }}>
+          <span className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold text-ink" style={{ background: `${color}22` }}>
             <span aria-hidden style={{ color }}>{ICON[f.status]}</span>
             {STATUS_LABEL[f.status]}
           </span>

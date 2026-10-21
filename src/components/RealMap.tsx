@@ -4,7 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { useEffect, useRef, useState } from 'react'
 import { STATUS_COLOR } from '../data/colors'
-import { BOUNDS, CHIP_ANCHOR, PIPE_GEO, TOWER, ZONE_GEO, ZONE_SHAPES, pipeMidpoint } from '../data/geo'
+import { CHIP_ANCHOR, ZONE_GEO, ZONE_SHAPES, bounds, pipeGeo, pipeMidpoint, towerPos } from '../data/geo'
 import { CALAVI } from '../data/network'
 import type { PipeId, ZoneId } from '../data/network'
 import type { EventType } from '../engine/events'
@@ -121,9 +121,11 @@ export function RealMap({ zones, broken, selected, onSelect, event = null, padRi
   const overview = (duration = 1600) => {
     const map = mapRef.current
     if (!map) return
-    const cam = map.cameraForBounds(BOUNDS, { padding: { top: 40, bottom: 40, left: 40 + leftRef.current, right: 40 + rightRef.current } })
+    const narrow = window.innerWidth < 1024
+    const cam = map.cameraForBounds(bounds(), { padding: { top: narrow ? 72 : 40, bottom: narrow ? 36 : 40, left: (narrow ? 64 : 40) + leftRef.current, right: (narrow ? 64 : 40) + rightRef.current } })
     // L'inclinaison montre plus de terrain vers l'horizon : on se rapproche un peu.
-    if (cam) map.flyTo({ ...cam, zoom: (cam.zoom ?? 11) + boostRef.current, pitch: TILT, bearing: BEARING, duration, essential: true })
+    const boost = narrow ? Math.min(boostRef.current, 0.05) : boostRef.current
+    if (cam) map.flyTo({ ...cam, zoom: (cam.zoom ?? 11) + boost, pitch: TILT, bearing: BEARING, duration, essential: true })
   }
 
   // Création de la carte, une seule fois.
@@ -131,7 +133,23 @@ export function RealMap({ zones, broken, selected, onSelect, event = null, padRi
     if (!box.current || failed) return
     let map: MLMap
     try {
-      map = new MLMap({ container: box.current, style: STYLE, center: [2.31, 6.45], zoom: 9.6, pitch: 0, bearing: 0, attributionControl: { compact: true }, maxPitch: 70 })
+      const touch = window.matchMedia('(pointer: coarse)').matches
+      map = new MLMap({
+        container: box.current,
+        style: STYLE,
+        center: [2.31, 6.45],
+        zoom: 9.6,
+        pitch: 0,
+        bearing: 0,
+        attributionControl: { compact: true },
+        maxPitch: 70,
+        cooperativeGestures: touch,
+        locale: {
+          'CooperativeGesturesHandler.WindowsHelpText': 'Ctrl + molette pour zoomer',
+          'CooperativeGesturesHandler.MacHelpText': '⌘ + molette pour zoomer',
+          'CooperativeGesturesHandler.MobileHelpText': 'Deux doigts pour déplacer la carte',
+        },
+      })
     } catch (e) {
       console.warn('RealMap : carte indisponible', e)
       const t = window.setTimeout(() => setFailed(true))
@@ -166,10 +184,10 @@ export function RealMap({ zones, broken, selected, onSelect, event = null, padRi
 
       const tower = document.createElement('div')
       tower.className = 'tower-marker'
-      tower.title = 'Château d’eau (simulé)'
-      tower.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 3h12l-2 7H8z M10 10h4v11h-4z" fill="currentColor"/></svg>'
+      tower.title = CALAVI.tower.name
+      tower.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 3h12l-2 7H8z M10 10h4v11h-4z" fill="currentColor"/></svg><span class="tower-label">${CALAVI.tower.name}</span>`
       towerEl.current = tower
-      new Marker({ element: tower }).setLngLat(TOWER).addTo(map)
+      new Marker({ element: tower }).setLngLat(towerPos()).addTo(map)
 
       for (const z of CALAVI.zones) {
         const el = document.createElement('div')
@@ -250,12 +268,13 @@ export function RealMap({ zones, broken, selected, onSelect, event = null, padRi
     const map = mapRef.current
     if (!map || !ready) return
     const wet = new Map(zones.map((f) => [f.zone, f.hoursOfWater > 0 && servedAt(f, activeHour)]))
+    const geo = pipeGeo()
     ;(map.getSource('pipes') as GeoJSONSource | undefined)?.setData({
       type: 'FeatureCollection',
       features: CALAVI.pipes.map((p) => ({
         type: 'Feature',
         properties: { state: broken.has(p.id) ? 'broken' : wet.get(p.to) ? 'flow' : 'dry' },
-        geometry: { type: 'LineString', coordinates: PIPE_GEO[p.id] },
+        geometry: { type: 'LineString', coordinates: geo[p.id] },
       })),
     })
   }, [zones, broken, ready, activeHour])
@@ -287,7 +306,7 @@ export function RealMap({ zones, broken, selected, onSelect, event = null, padRi
       wrap.current?.classList.add('flicker')
       const t = window.setTimeout(() => wrap.current?.classList.remove('flicker'), 1600)
       cleanups.push(() => window.clearTimeout(t))
-      map.flyTo({ center: TOWER, zoom: 12, pitch: 55, duration: 1400, padding: { top: 0, bottom: 0, left: 0, right: rightRef.current } })
+      map.flyTo({ center: towerPos(), zoom: 12, pitch: 55, duration: 1400, padding: { top: 0, bottom: 0, left: 0, right: rightRef.current } })
     }
     if (event === 'pipe_burst') {
       const [pipe] = [...broken]
