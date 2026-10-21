@@ -23,20 +23,20 @@ body,
 
 body {
   margin: 0;
-  background: #e9f1fa;
+  background: #f6f9fd;
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
 .page {
-  background: radial-gradient(ellipse at 15% 0%, #ffffff, transparent 55%), radial-gradient(ellipse at 90% 100%, #d6e7fa, transparent 60%), #e9f1fa;
+  background: #f6f9fd;
 }
 
-/* Le cadre est un conteneur : les unités cqw suivent sa largeur. */
+/* La page entière est un conteneur : les unités cqw suivent sa largeur. */
 .frame {
   container-type: inline-size;
-  background: linear-gradient(180deg, #f6f9fd, #eef4fb);
+  background: linear-gradient(180deg, #f6f9fd 0, #edf3fa 100%);
 }
 
 .water-fallback {

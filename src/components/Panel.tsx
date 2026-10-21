@@ -28,7 +28,7 @@ export function Panel() {
   const Body = BODY[view]
 
   return (
-    <motion.section id="panel" initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.5, ease: 'easeOut' }} className="glass relative z-[2] mx-4 -mt-[7cqw] scroll-mt-4 p-5 md:mx-8 md:p-7">
+    <motion.section id="panel" initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.5, ease: 'easeOut' }} className="glass relative z-[2] scroll-mt-4 p-5 md:p-7" style={{ marginTop: 'calc(var(--hero-h) * -0.14)' }}>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="font-display text-xl font-semibold">{TITLE[view]}</h2>
@@ -42,7 +42,7 @@ export function Panel() {
         </div>
       </div>
 
-      <div className="mb-5"><EventBar /></div>
+      <div className="mb-5"><EventBar showPlan={view !== 'operateur'} /></div>
 
       <AnimatePresence mode="wait">
         <motion.div key={view} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.28 }}>

@@ -14,7 +14,7 @@ export function Hero() {
   }
 
   return (
-    <header className="relative aspect-[1000/520] min-h-[380px] w-full text-white">
+    <header className="relative w-full text-white" style={{ height: 'var(--hero-h)' }}>
       <WaterScene />
       {/* L'eau se fond dans la page claire */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[22%] bg-gradient-to-b from-transparent to-[#f6f9fd]" />

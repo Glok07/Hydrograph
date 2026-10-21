@@ -34,7 +34,7 @@ export function Bubbles({ x }: { x: MotionValue<number> }) {
   }, [])
 
   return (
-    <motion.div aria-hidden className="pointer-events-none absolute -inset-x-10 z-[1] overflow-hidden" style={{ top: '23.6cqw', height: '24cqw', x }}>
+    <motion.div aria-hidden className="pointer-events-none absolute -inset-x-10 z-[1] overflow-hidden" style={{ top: 'calc(var(--hero-h) * 0.44)', height: 'calc(var(--hero-h) * 0.46)', x }}>
       {bubbles.map((b) => (
         <span
           key={b.id}

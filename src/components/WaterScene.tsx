@@ -166,12 +166,14 @@ export function WaterScene() {
   }, [])
 
   const { w, h } = size
-  const fs = w * 0.17
+  // Sur grand écran la scène est plus large que haute : le texte suit la plus petite des deux mesures.
+  const base = Math.min(w, h * 1.92)
+  const fs = Math.min(w * 0.17, h * 0.34)
   const title = {
     x: w / 2,
     y: h * SURFACE + 0.35 * fs,
     textAnchor: 'middle',
-    textLength: w * 0.88,
+    textLength: Math.min(fs * 5.1, w * 0.92),
     lengthAdjust: 'spacingAndGlyphs',
     style: { fontFamily: 'Montserrat, sans-serif', fontWeight: 800, fontSize: fs },
   } as const
@@ -196,7 +198,7 @@ export function WaterScene() {
             <text {...title} fill="#d9f1ff" fillOpacity="0.85">HYDROGRAPH</text>
 
           </g>
-          <text x={w / 2} y={h * 0.68} textAnchor="middle" fill="#fff" fillOpacity="0.9" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300, fontSize: w * 0.026, letterSpacing: w * 0.009 }}>
+          <text x={w / 2} y={h * 0.68} textAnchor="middle" fill="#fff" fillOpacity="0.9" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300, fontSize: base * 0.026, letterSpacing: base * 0.009 }}>
               LA MÉTÉO DE L’EAU
             </text>
         </g>
