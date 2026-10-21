@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
 import { CALAVI } from '../data/network'
+import { SUBSCRIBERS, subscribersOf } from '../data/subscribers'
+import { messageFor, sendWhatsApp } from '../engine/notify'
 import { LANGS, buildMessage } from '../engine/messages'
 import type { Lang } from '../engine/messages'
 import { useDerived } from '../store/useDerived'
@@ -22,6 +24,29 @@ export function FamilyView() {
   const zone = CALAVI.zones.find((z) => z.id === zoneId)!
   const msg = buildMessage(event, zone, shown.find((f) => f.zone === zoneId)!, plan)
   const text = `${channel === 'whatsapp' ? '💧 ' : ''}${msg.title} : ${msg.body}`
+  const [busy, setBusy] = useState(false)
+  const [report, setReport] = useState('')
+  const zoneSubs = subscribersOf(zoneId)
+
+  /** realOnly : envoi WhatsApp aux testeurs ; sinon, simulation sur tous les abonnés de la zone. */
+  const broadcast = async (realOnly: boolean) => {
+    const forecast = shown.find((f) => f.zone === zoneId)!
+    if (!realOnly) {
+      const sample = messageFor(zoneSubs[0], event, zone, forecast, plan)
+      setReport(`Simulé : ${zoneSubs.length} messages prêts (${zoneSubs.filter((s) => s.channel === 'whatsapp').length} WhatsApp, ${zoneSubs.filter((s) => s.channel === 'sms').length} SMS). Exemple : « ${sample.text} »`)
+      return
+    }
+    setBusy(true)
+    const results = await Promise.all(
+      SUBSCRIBERS.filter((s) => s.real).map(async (s) => {
+        const z = CALAVI.zones.find((x) => x.id === s.zone)!
+        const out = messageFor(s, event, z, shown.find((f) => f.zone === s.zone)!, plan)
+        return { name: s.name, res: await sendWhatsApp(out.to, out.text) }
+      }),
+    )
+    setBusy(false)
+    setReport(results.map((r) => `${r.name} : ${r.res.ok ? (r.res.dryRun ? 'dry-run (aucun jeton configuré)' : 'envoyé ✓') : r.res.error}`).join(' · '))
+  }
 
   const speak = () => {
     if (!('speechSynthesis' in window)) return
@@ -66,7 +91,22 @@ export function FamilyView() {
           </div>
         </div>
         <button onClick={speak} className="pill pill-solid">{speaking ? 'Lecture en cours…' : '▶ Écouter le message vocal'}</button>
-        <p className="text-[11px] text-ink/45">Envoi simulé · vrai canal : WhatsApp Business ou SMS. Voix : synthèse du navigateur, en français.</p>
+        <p className="text-[11px] text-ink/45">Voix : synthèse du navigateur, en français. Envoi réel WhatsApp : testeurs uniquement (lancer <b>npm run api</b>).</p>
+
+        <div className="rounded-2xl border border-ink/10 p-4">
+          <p className="mb-1 text-xs uppercase tracking-[0.16em] text-ink/55">Abonnés · {zone.name}</p>
+          <p className="mb-3 text-xs text-ink/70">{zoneSubs.length} abonnés inscrits dans cette zone ({SUBSCRIBERS.length} au total, {zoneSubs.reduce((n, s) => n + s.members, 0)} personnes touchées).</p>
+          <ul className="mb-3 max-h-32 space-y-1 overflow-auto text-xs">
+            {zoneSubs.slice(0, 8).map((s) => (
+              <li key={s.id} className="flex justify-between gap-2"><span>{s.name}{s.real && ' ✅'}</span><span className="text-ink/50">{s.phone} · {s.lang} · {s.channel}</span></li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => broadcast(false)} disabled={busy} className="pill">Simuler la diffusion ({zoneSubs.length})</button>
+            <button onClick={() => broadcast(true)} disabled={busy} className="pill pill-solid">Envoyer aux testeurs</button>
+          </div>
+          {report && <p className="mt-3 text-xs font-medium text-ink">{report}</p>}
+        </div>
       </div>
 
       <div className="mx-auto w-full max-w-[290px]">

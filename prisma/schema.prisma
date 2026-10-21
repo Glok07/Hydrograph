@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Lang {
+  fr
+  fon
+  goun
+  yoruba
+}
+
+enum Channel {
+  whatsapp
+  sms
+}
+
+enum NotifStatus {
+  pending
+  sent
+  failed
+}
+
+model Subscriber {
+  id            String         @id @default(cuid())
+  name          String
+  /// E.164 sans « + », ex. 2290146910055
+  phone         String         @unique
+  zone          String
+  lang          Lang           @default(fr)
+  channel       Channel        @default(whatsapp)
+  members       Int            @default(4)
+  /// seuls les testeurs réels reçoivent de vrais messages
+  real          Boolean        @default(false)
+  consent       Boolean        @default(false)
+  verifiedAt    DateTime?
+  unsubscribedAt DateTime?
+  joinedAt      DateTime       @default(now())
+  notifications Notification[]
+
+  @@index([zone])
+}
+
+model NetworkEvent {
+  id        String         @id @default(cuid())
+  type      String
+  startsAt  Int
+  durationH Int
+  pipe      String?
+  createdAt DateTime       @default(now())
+  notifications Notification[]
+}
+
+model Notification {
+  id           String        @id @default(cuid())
+  subscriber   Subscriber    @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  subscriberId String
+  event        NetworkEvent? @relation(fields: [eventId], references: [id])
+  eventId      String?
+  zone         String
+  text         String
+  status       NotifStatus   @default(pending)
+  /// identifiant du message côté Meta (wamid...)
+  providerId   String?
+  error        String?
+  createdAt    DateTime      @default(now())
+  sentAt       DateTime?
+
+  @@index([subscriberId])
+  @@index([status])
+}
