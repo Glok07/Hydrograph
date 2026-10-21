@@ -1,6 +1,6 @@
 import type { Network, PipeId, Zone, ZoneId } from '../data/network'
 import type { HydroEvent } from './events'
-import { downstream } from './graph'
+import { downstream } from './graph.js'
 
 /** Journée de service : 9 créneaux de 2 h, de 5 h à 23 h. */
 export const DAY_START = 5

@@ -1,9 +1,9 @@
 import type { Network, ZoneId } from '../data/network'
-import { SLOT_H, SLOT_STARTS, conditionsFor, demandAt, isPeak } from './conditions'
+import { SLOT_H, SLOT_STARTS, conditionsFor, demandAt, isPeak } from './conditions.js'
 import type { HydroEvent } from './events'
-import { toForecast } from './forecast'
+import { toForecast } from './forecast.js'
 import type { Slot, ZoneForecast } from './forecast'
-import { isReachable } from './graph'
+import { isReachable } from './graph.js'
 
 /**
  * Score de priorité d'un créneau : le moins servi passe d'abord (équité),

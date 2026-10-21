@@ -21,6 +21,8 @@ enum Channel {
 enum NotifStatus {
   pending
   sent
+  delivered
+  read
   failed
 }
 
@@ -71,4 +73,15 @@ model Notification {
 
   @@index([subscriberId])
   @@index([status])
+}
+
+model VerificationCode {
+  id        String   @id @default(cuid())
+  phone     String
+  codeHash  String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([phone])
 }
