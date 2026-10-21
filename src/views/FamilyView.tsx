@@ -39,7 +39,13 @@ export function FamilyView() {
     setBusy(true)
     const out = await sendAlerts(event, plan)
     setBusy(false)
-    setReport('error' in out ? out.error : `${out.count} message(s) : ${out.results.map((r) => `${r.name} ${r.status}${r.error ? ` (${r.error})` : ''}`).join(' · ')}`)
+    if ('error' in out) {
+      // Détail technique en console : l'écran reste lisible pendant une démonstration.
+      console.warn('Envoi réel indisponible :', out.error)
+      setReport('Envoi réel en attente : le numéro WhatsApp professionnel est en cours d’activation chez Meta. La diffusion simulée montre les messages qui partiront.')
+      return
+    }
+    setReport(`${out.count} message(s) : ${out.results.map((r) => `${r.name} ${r.status}${r.error ? ` (${r.error})` : ''}`).join(' · ')}`)
   }
 
   const speak = () => {
