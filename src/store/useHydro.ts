@@ -44,6 +44,7 @@ interface HydroState {
   setView: (view: View) => void
   setEvent: (event: EventType | null) => void
   toggleCause: (cause: EventType) => void
+  setCauses: (causes: EventType[]) => void
   clearCauses: () => void
   setPeriod: (period: string) => void
   setMapMode: (mode: MapMode) => void
@@ -88,6 +89,8 @@ export const useHydro = create<HydroState>((set) => ({
       const causes = s.causes.includes(cause) ? s.causes.filter((c) => c !== cause) : [...s.causes, cause]
       return { causes, event: causes[0] ?? null, plan: false }
     }),
+  // Remplace toutes les causes d'un coup : utilisé par le chatbot pour appliquer une situation décrite en mots.
+  setCauses: (causes) => set({ causes, event: causes[0] ?? null, plan: false }),
   clearCauses: () => set({ causes: [], event: null, plan: false }),
   setPeriod: (period) => set({ period }),
   setMapMode: (mapMode) => set({ mapMode }),

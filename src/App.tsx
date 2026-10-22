@@ -1,6 +1,7 @@
 import { useMotionValue, useSpring } from 'framer-motion'
 import type { PointerEvent } from 'react'
 import { Bubbles } from './components/Bubbles'
+import { ChatBot } from './components/ChatBot'
 import { DemoTour } from './components/DemoTour'
 import { Hero } from './components/Hero'
 import { Panel } from './components/Panel'
@@ -33,6 +34,7 @@ export default function App() {
       </div>
       <SourcesDialog />
       <DemoTour />
+      <ChatBot />
     </div>
   )
 }
