@@ -2,6 +2,7 @@
 import 'dotenv/config'
 import http from 'node:http'
 import * as alertsSend from '../api/alerts/send.js'
+import * as chat from '../api/chat/index.js'
 import * as history from '../api/history/index.js'
 import * as network from '../api/network/index.js'
 import * as planAi from '../api/plan/ai.js'
@@ -18,6 +19,7 @@ const routes: Record<string, Handlers> = {
   '/api/whatsapp/webhook': webhook,
   '/api/network': network,
   '/api/history': history,
+  '/api/chat': chat,
 }
 
 const PORT = Number(process.env.PORT ?? 8787)
